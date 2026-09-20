@@ -1,10 +1,15 @@
+import { BarElement, CategoryScale, Chart as ChartJS, LinearScale, Tooltip } from 'chart.js';
 import { Activity, AlertTriangle, Gauge, ShieldAlert, TrendingDown, Users, X } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
+import { Bar } from 'react-chartjs-2';
 import { client } from '../api/client';
 import { RiskBadge, Spinner } from '../components/Badge';
 import Card from '../components/Card';
 import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
+import { chartColors } from '../lib/chartTheme';
+
+ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip);
 
 const RISK_FILTERS = [
   { value: '', label: 'All' },
@@ -13,6 +18,19 @@ const RISK_FILTERS = [
   { value: 'medium', label: 'Medium' },
   { value: 'low', label: 'Low' },
 ];
+
+const FEATURE_LABELS = {
+  CreditScore: 'Credit score',
+  Age: 'Age',
+  Tenure: 'Tenure',
+  Balance: 'Balance',
+  'Num Of Products': 'Products held',
+  'Has Credit Card': 'Has credit card',
+  'Is Active Member': 'Active member',
+  'Estimated Salary': 'Estimated salary',
+  Geography_enc: 'Geography',
+  Gender_enc: 'Gender',
+};
 
 export default function Pulse() {
   const [customers, setCustomers] = useState([]);
@@ -43,6 +61,20 @@ export default function Pulse() {
     return { critical, avgRisk, atRiskBalance, total: customers.length };
   }, [customers]);
 
+  const importanceChart = useMemo(() => {
+    if (!metrics) return null;
+    const entries = Object.entries(metrics.feature_importances).sort((a, b) => b[1] - a[1]);
+    return {
+      labels: entries.map(([k]) => FEATURE_LABELS[k] || k),
+      datasets: [{
+        data: entries.map(([, v]) => Math.round(v * 1000) / 10),
+        backgroundColor: chartColors.gold,
+        borderRadius: 4,
+        barThickness: 14,
+      }],
+    };
+  }, [metrics]);
+
   return (
     <div>
       <PageHeader
@@ -66,18 +98,46 @@ export default function Pulse() {
 
       {metrics && (
         <Card title="Model performance" className="mb-6">
-          <div className="flex gap-10">
+          <div className="grid grid-cols-2 gap-8">
             <div>
-              <div className="text-2xl font-bold text-gold tabular-nums">{metrics.metrics.auc.toFixed(3)}</div>
-              <div className="text-xs text-gray-500 mt-0.5">AUC (real held-out test set)</div>
+              <div className="flex gap-10 mb-5">
+                <div>
+                  <div className="text-2xl font-bold text-gold tabular-nums">{metrics.metrics.auc.toFixed(3)}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">AUC (real held-out test set)</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-white tabular-nums">{(metrics.metrics.accuracy * 100).toFixed(1)}%</div>
+                  <div className="text-xs text-gray-500 mt-0.5">Accuracy</div>
+                </div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-white tabular-nums">{metrics.metrics.n_train}<span className="text-gray-500 text-base"> / {metrics.metrics.n_test}</span></div>
+                <div className="text-xs text-gray-500 mt-0.5">Train / test split (RandomForestClassifier)</div>
+              </div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-white tabular-nums">{(metrics.metrics.accuracy * 100).toFixed(1)}%</div>
-              <div className="text-xs text-gray-500 mt-0.5">Accuracy</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-white tabular-nums">{metrics.metrics.n_train}<span className="text-gray-500 text-base"> / {metrics.metrics.n_test}</span></div>
-              <div className="text-xs text-gray-500 mt-0.5">Train / test split</div>
+              <div className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold mb-2">Feature importance</div>
+              <div style={{ height: `${importanceChart.labels.length * 22}px` }}>
+                <Bar
+                  data={importanceChart}
+                  options={{
+                    indexAxis: 'y',
+                    maintainAspectRatio: false,
+                    plugins: {
+                      legend: { display: false },
+                      tooltip: {
+                        backgroundColor: '#111f3d', borderColor: 'rgba(212,175,55,0.2)', borderWidth: 1,
+                        titleColor: '#fff', bodyColor: '#c3c9d6', padding: 8, cornerRadius: 6,
+                        callbacks: { label: (ctx) => `${ctx.raw}% of model decision weight` },
+                      },
+                    },
+                    scales: {
+                      x: { display: false },
+                      y: { grid: { display: false }, border: { display: false }, ticks: { color: chartColors.text, font: { size: 11 } } },
+                    },
+                  }}
+                />
+              </div>
             </div>
           </div>
         </Card>

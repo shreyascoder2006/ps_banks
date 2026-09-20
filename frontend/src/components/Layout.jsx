@@ -1,5 +1,5 @@
 import {
-  Activity, Landmark, LineChart, LogOut, MessagesSquare,
+  Activity, LayoutDashboard, Landmark, LineChart, LogOut, MessagesSquare,
   ShieldCheck, Sparkles, TrendingUp, Users,
 } from 'lucide-react';
 import React from 'react';
@@ -7,6 +7,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 
 const NAV_ITEMS = [
+  { to: '/', label: 'Overview', icon: LayoutDashboard, end: true },
   { to: '/pulse', label: 'Churn Pulse', icon: Activity },
   { to: '/segments', label: 'Segments & Offers', icon: Users },
   { to: '/forecast', label: 'Growth Forecast', icon: TrendingUp },
@@ -41,6 +42,7 @@ export default function Layout({ children }) {
               <NavLink
                 key={item.to}
                 to={item.to}
+                end={item.end}
                 className={({ isActive }) =>
                   `group flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13.5px] font-medium transition-all duration-150 relative ${
                     isActive

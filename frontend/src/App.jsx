@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
+import Overview from './pages/Overview';
 import Pulse from './pages/Pulse';
 import Segments from './pages/Segments';
 import Forecast from './pages/Forecast';
@@ -24,7 +25,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route path="/" element={<Navigate to="/pulse" replace />} />
+          <Route path="/" element={<Protected><Overview /></Protected>} />
           <Route path="/pulse" element={<Protected><Pulse /></Protected>} />
           <Route path="/segments" element={<Protected><Segments /></Protected>} />
           <Route path="/forecast" element={<Protected><Forecast /></Protected>} />
