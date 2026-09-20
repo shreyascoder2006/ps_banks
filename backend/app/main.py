@@ -7,6 +7,7 @@ from .config import CORS_ORIGINS
 from .db import init_db, session_scope
 from .routers import (
     activity_routes,
+    realtime_routes,
     assistant_routes,
     auth_routes,
     blockchain_routes,
@@ -26,6 +27,9 @@ from .services.complaints import seed_complaints_if_empty
 async def lifespan(app: FastAPI):
     # Train (or load a cached) churn model once at startup instead of on
     # first request, so the first API call isn't slow.
+    from .services import events
+    import asyncio
+    events.bind_loop(asyncio.get_running_loop())
     init_db()
     get_model_bundle()
     with session_scope() as session:
@@ -52,6 +56,7 @@ app.include_router(sentiment_routes.router)
 app.include_router(complaints_routes.router)
 app.include_router(outreach_routes.router)
 app.include_router(activity_routes.router)
+app.include_router(realtime_routes.router)
 app.include_router(assistant_routes.router)
 app.include_router(blockchain_routes.router)
 

@@ -63,6 +63,7 @@ def store_audit_record(record_type: str, description: str, payload_hash_hex: str
     receipt = web3.eth.wait_for_transaction_receipt(tx_hash)
 
     if receipt.status != 1:
+        _publish_audit("failed", record_type, description, tx_hash.hex(), receipt.blockNumber)
         return {
             "status": "failed",
             "detail": "Transaction reverted on-chain - see tx_hash for the failed receipt.",
@@ -71,6 +72,7 @@ def store_audit_record(record_type: str, description: str, payload_hash_hex: str
             "record_hash": payload_hash_hex,
         }
 
+    _publish_audit("stored", record_type, description, tx_hash.hex(), receipt.blockNumber)
     return {
         "status": "stored",
         "tx_hash": tx_hash.hex(),
@@ -78,6 +80,17 @@ def store_audit_record(record_type: str, description: str, payload_hash_hex: str
         "record_hash": payload_hash_hex,
         "contract_address": AUDIT_CONTRACT_ADDRESS,
     }
+
+
+def _publish_audit(status: str, record_type: str, description: str, tx_hash: str, block: int) -> None:
+    try:
+        from .events import publish
+        publish("audit_stored" if status == "stored" else "audit_failed",
+                f"Block #{block}: {record_type.replace('_', ' ')} - {description}",
+                severity=None if status == "stored" else "high",
+                data={"status": status, "recordType": record_type, "txHash": tx_hash, "block": block})
+    except Exception:
+        pass
 
 
 def record_event(record_type: str, description: str, payload: str) -> Dict[str, Any]:

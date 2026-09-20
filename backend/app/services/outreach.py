@@ -20,6 +20,7 @@ from ..config import GROQ_API_KEY
 from ..models import Complaint, OutreachAction, OutreachOutcome
 from .blockchain import record_event
 from .churn import score_all_customers
+from .events import publish
 from .segmentation import compute_personalised_offer, compute_segments
 
 CHANNELS = ("rm_visit", "call", "email", "sms", "in_app")
@@ -172,6 +173,13 @@ def trigger(session: Session, customer_id: int, triggered_by: str, channel: Opti
     session.commit()
     session.refresh(action)
 
+    publish(
+        "outreach_triggered",
+        f"Outreach #{action.id} via {CHANNEL_LABELS[chosen].lower()} to {rec['surname']} ({rec['churnRiskScore']:.0f}% risk) by {triggered_by}",
+        severity=rec["churnRiskLevel"] if rec["churnRiskLevel"] in ("critical", "high") else None,
+        ref={"actionId": action.id, "customerId": customer_id},
+        data={"channel": chosen, "audit": audit},
+    )
     return {"action": action_to_dict(action), "audit": audit, "recommendation": rec}
 
 
@@ -192,6 +200,9 @@ def record_outcome(session: Session, action_id: int, outcome: str, notes: Option
         session.add(row)
     session.commit()
     session.refresh(row)
+    publish("outreach_outcome", f"Outreach #{action_id} outcome: {outcome.replace('_', ' ')}",
+            severity="low" if outcome == "retained" else ("critical" if outcome == "churned" else None),
+            ref={"actionId": action_id, "customerId": action.customer_id}, data={"outcome": outcome})
     return {"actionId": action_id, "outcome": row.outcome, "notes": row.notes, "recordedAt": row.created_at.isoformat() + "Z"}
 
 

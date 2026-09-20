@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useInterval } from '../lib/hooks';
+import { useEvent } from '../lib/realtime';
 import { Doughnut } from 'react-chartjs-2';
 import { Link } from 'react-router-dom';
 import { client } from '../api/client';
@@ -16,6 +17,7 @@ import { chartColors } from '../lib/chartTheme';
 ChartJS.register(ArcElement, Tooltip, Legend);
 
 const RISK_ORDER = ['critical', 'high', 'medium', 'low'];
+const LIVE_TYPES = ['complaint_logged', 'complaint_status', 'complaint_message', 'outreach_triggered', 'outreach_outcome', 'risk_changed', 'balance_moved', 'model_retrained', 'audit_stored'];
 const RISK_COLORS = { critical: chartColors.red, high: '#f59e0b', medium: chartColors.blue, low: chartColors.green };
 
 export default function Overview() {
@@ -38,6 +40,7 @@ export default function Overview() {
     client.get('/forecast/growth', { params: { periods: 1 } }).then((res) => setForecast(res.data));
   }, []);
   useInterval(loadLive, 30000);
+  useEvent(LIVE_TYPES, loadLive);
 
   const riskCounts = stats ? RISK_ORDER.map((level) => stats.byRiskLevel[level]) : null;
   const totalBalance = stats ? stats.totalBalance : null;

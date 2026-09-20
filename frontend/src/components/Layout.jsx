@@ -5,6 +5,7 @@ import {
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import TopBar from './TopBar';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Overview', icon: LayoutDashboard, end: true },
@@ -83,7 +84,8 @@ export default function Layout({ children }) {
         </div>
       </aside>
       <main className="flex-1 overflow-y-auto">
-        <div className="max-w-6xl mx-auto px-8 py-8 fade-in">{children}</div>
+        <TopBar />
+        <div className="max-w-6xl mx-auto px-8 py-6 fade-in">{children}</div>
       </main>
     </div>
   );

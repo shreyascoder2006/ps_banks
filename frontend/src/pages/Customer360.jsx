@@ -9,6 +9,7 @@ import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
 import WhatIfSimulator from '../components/WhatIfSimulator';
 import { useToast } from '../components/Toast';
+import { useEvent } from '../lib/realtime';
 
 function Field({ label, value }) {
   return (
@@ -36,6 +37,7 @@ export default function Customer360() {
     client.get(`/customers/${id}/360`).then((res) => setData(res.data)).catch((err) => setError(err.response?.data?.detail || 'Failed to load'));
 
   useEffect(() => { load(); }, [id]);
+  useEvent((e) => String(e.ref?.customerId) === String(id), load);
 
   if (error) return <div className="text-red-300">{error}</div>;
   if (!data) return <div className="skeleton h-96" />;

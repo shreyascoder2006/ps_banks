@@ -11,6 +11,7 @@ import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
 import { useToast } from '../components/Toast';
 import { baseGridOptions, chartColors } from '../lib/chartTheme';
+import { useEvent } from '../lib/realtime';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip);
 
@@ -33,6 +34,7 @@ export default function Outreach() {
     client.get('/outreach/effectiveness').then((res) => setEff(res.data));
   };
   useEffect(() => { load(); }, []);
+  useEvent(['outreach_triggered', 'outreach_outcome', 'model_retrained'], load);
 
   const setOutcome = async (id, outcome) => {
     setBusy(`${id}-${outcome}`);

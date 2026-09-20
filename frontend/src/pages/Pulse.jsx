@@ -11,6 +11,7 @@ import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
 import { chartColors } from '../lib/chartTheme';
 import { useDebounce } from '../lib/hooks';
+import { useEvent } from '../lib/realtime';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip);
 
@@ -70,6 +71,14 @@ export default function Pulse() {
   useEffect(() => {
     client.get('/customers/branches').then((res) => setBranches(res.data.branches));
   }, []);
+
+  const [tick, setTick] = useState(0);
+  useEvent(['risk_changed', 'balance_moved', 'model_retrained', 'outreach_triggered'], () => setTick((t) => t + 1));
+  useEffect(() => {
+    if (tick === 0) return;
+    client.get('/customers', { params: { ...(riskLevel ? { riskLevel } : {}), ...(debouncedQ ? { q: debouncedQ } : {}), ...(branch ? { branch } : {}), sort: sort.key, order: sort.order, limit: PAGE, offset: page * PAGE } })
+      .then((res) => { setCustomers(res.data.customers); setTotal(res.data.total); });
+  }, [tick]);
 
   const toggleSort = (key) =>
     setSort((s) => (s.key === key ? { key, order: s.order === 'desc' ? 'asc' : 'desc' } : { key, order: 'desc' }));

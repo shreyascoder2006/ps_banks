@@ -72,11 +72,36 @@ def _operational_signals() -> pd.DataFrame:
     return out
 
 
+def _live_overrides() -> pd.DataFrame:
+    try:
+        from sqlmodel import select
+        from ..db import session_scope
+        from ..models import CustomerSignal
+
+        with session_scope() as session:
+            rows = session.exec(select(CustomerSignal)).all()
+            return pd.DataFrame([
+                {"CustomerId": r.customer_id, "live_active": r.is_active_member, "live_balance": r.balance}
+                for r in rows
+            ])
+    except Exception:
+        return pd.DataFrame(columns=["CustomerId", "live_active", "live_balance"])
+
+
 def _augment(df: pd.DataFrame) -> pd.DataFrame:
     signals = _operational_signals()
     out = df.merge(signals, on="CustomerId", how="left")
     out["complaint_count"] = out["complaint_count"].fillna(0).astype(int)
     out["outreach_count"] = out["outreach_count"].fillna(0).astype(int)
+
+    live = _live_overrides()
+    if not live.empty:
+        out = out.merge(live, on="CustomerId", how="left")
+        mask_a = out["live_active"].notna()
+        out.loc[mask_a, "Is Active Member"] = out.loc[mask_a, "live_active"].astype(int)
+        mask_b = out["live_balance"].notna()
+        out.loc[mask_b, "Balance"] = out.loc[mask_b, "live_balance"].astype(float)
+        out = out.drop(columns=["live_active", "live_balance"])
     return out
 
 
@@ -148,6 +173,12 @@ def retrain_with_feedback() -> dict:
     get_model_bundle.cache_clear()
     bundle = _train()
     get_model_bundle()  # re-prime the cache from the freshly saved artifact
+    try:
+        from .events import publish
+        publish("model_retrained", f"Churn model retrained with {bundle['metrics']['feedback_rows_used']} outcome-labelled customer(s) - AUC {bundle['metrics']['auc']:.3f}",
+                severity="low", data=bundle["metrics"])
+    except Exception:
+        pass
     return {"metrics": bundle["metrics"], "feature_importances": bundle["feature_importances"]}
 
 

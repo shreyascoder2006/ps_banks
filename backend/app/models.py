@@ -54,6 +54,19 @@ class OutreachAction(SQLModel, table=True):
     audit_status: Optional[str] = None
 
 
+class CustomerSignal(SQLModel, table=True):
+    """Live behavioural signals layered on top of the static dataset so
+    risk scores can actually move at runtime (activity drop-offs, balance
+    changes). Written by the demo simulator and by real actions; every
+    row is labelled with its source."""
+    customer_id: int = Field(primary_key=True)
+    is_active_member: Optional[int] = None
+    balance: Optional[float] = None
+    source: str = "simulator"
+    note: Optional[str] = None
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class OutreachOutcome(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     action_id: int = Field(index=True)

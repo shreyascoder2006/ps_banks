@@ -25,6 +25,7 @@ from ..data.loader import load_customers
 from ..models import Complaint, ComplaintMessage
 from .blockchain import record_event
 from .complaints import SLA_HOURS, analyze_complaint, to_dict
+from .events import publish
 
 _SEVERITY_KEYWORDS = {
     "critical": ["fraud", "unauthori", "stolen", "hack", "ombudsman", "police", "scam", "lost money"],
@@ -88,7 +89,14 @@ def create_complaint(session: Session, customer_id: int, subject: str, body: str
 
     analysis = analyze_complaint(session, c) if auto_analyze else None
     related = related_complaints(session, c.id)
-    return {"complaint": to_dict(c), "analysis": analysis, "related": related}
+    d = to_dict(c)
+    publish(
+        "complaint_logged",
+        f"New {d['severity']} complaint via {channel}: {d['customerName']} - {subject}",
+        severity=d["severity"], ref={"complaintId": c.id, "customerId": customer_id},
+        data={"complaint": d, "related": related},
+    )
+    return {"complaint": d, "analysis": analysis, "related": related}
 
 
 def _corpus(session: Session) -> tuple[list[Complaint], list[str]]:
@@ -232,4 +240,5 @@ def regulatory_export(session: Session, actor: str) -> dict:
         f"Complaint regulatory export ({len(rows)} cases) by {actor}",
         csv_text or json.dumps({"empty": True, "generated_at": now.isoformat()}),
     )
+    publish("regulatory_export", f"Regulatory export generated ({len(rows)} cases) by {actor}", data={"audit": audit, "caseCount": len(rows)})
     return {"generated_at": now.isoformat(), "case_count": len(rows), "csv": csv_text, "audit": audit}

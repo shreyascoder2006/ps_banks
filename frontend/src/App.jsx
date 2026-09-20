@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import Layout from './components/Layout';
 import { ToastProvider } from './components/Toast';
+import { RealtimeProvider } from './lib/realtime';
 import Login from './pages/Login';
 import Overview from './pages/Overview';
 import Pulse from './pages/Pulse';
@@ -27,6 +28,7 @@ export default function App() {
   return (
     <AuthProvider>
       <ToastProvider>
+      <RealtimeProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -44,6 +46,7 @@ export default function App() {
           <Route path="/blockchain" element={<Protected><Blockchain /></Protected>} />
         </Routes>
       </BrowserRouter>
+      </RealtimeProvider>
       </ToastProvider>
     </AuthProvider>
   );

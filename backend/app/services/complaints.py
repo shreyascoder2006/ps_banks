@@ -23,6 +23,7 @@ from ..config import GROQ_API_KEY
 from ..models import Complaint, ComplaintMessage
 from .blockchain import record_event
 from .churn import score_all_customers
+from .events import publish
 
 CFPB_BASE = "https://www.consumerfinance.gov/data-research/consumer-complaints/search/api/v1/"
 
@@ -273,6 +274,13 @@ def update_status(session: Session, c: Complaint, status: str, actor: str, note:
             f"{c.id} resolved by {actor}",
             json.dumps({"id": c.id, "customer_id": c.customer_id, "resolved_at": c.resolved_at.isoformat(), "actor": actor, "note": note}),
         )
+    publish(
+        "complaint_status",
+        f"{c.id} ({c.customer_name}) {previous.replace('_', ' ')} -> {status.replace('_', ' ')} by {actor}",
+        severity=c.severity if status == "escalated" else ("low" if status == "resolved" else None),
+        ref={"complaintId": c.id, "customerId": c.customer_id},
+        data={"status": status, "previous": previous, "audit": audit},
+    )
     return {"complaint": to_dict(c), "audit": audit}
 
 
@@ -284,4 +292,5 @@ def add_message(session: Session, c: Complaint, author: str, body: str) -> Compl
         session.add(c)
     session.commit()
     session.refresh(msg)
+    publish("complaint_message", f"{author} replied on {c.id}", ref={"complaintId": c.id, "customerId": c.customer_id}, data={"author": author, "body": body})
     return msg

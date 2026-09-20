@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import { Spinner } from '../components/Badge';
 import Card from '../components/Card';
 import PageHeader from '../components/PageHeader';
+import { useEvent } from '../lib/realtime';
 
 function StatusPill({ status }) {
   const map = {
@@ -47,6 +48,7 @@ export default function Blockchain() {
   };
 
   useEffect(() => { fetchLatest(); }, []);
+  useEvent('audit', fetchLatest);
 
   return (
     <div>

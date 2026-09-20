@@ -7,6 +7,7 @@ import Card from '../components/Card';
 import PageHeader from '../components/PageHeader';
 import { useToast } from '../components/Toast';
 import { useInterval, useNow } from '../lib/hooks';
+import { useEvent } from '../lib/realtime';
 
 const STATUSES = ['open', 'in_progress', 'escalated', 'resolved'];
 const AGENTS = ['agent', 'admin', 'rm-team', 'fraud-desk', 'ombudsman-cell'];
@@ -144,6 +145,8 @@ export default function Complaints() {
 
   useEffect(() => { loadList(); }, [filter, view]);
   useInterval(loadList, 30000);
+  useEvent('complaint', (e) => { loadList(); if (selected && e.ref?.complaintId === selected) loadDetail(selected); });
+  useEvent('sla', loadList);
 
   const select = (c) => {
     setSelected(c.id);
