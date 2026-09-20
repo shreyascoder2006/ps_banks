@@ -23,6 +23,17 @@ silently fabricating data, this file tags every non-obvious signal as
 - Blockchain audit trail — a genuine Solidity contract (`blockchain/AuditTrail.sol`)
   deployable to a local Ganache instance via Web3.py; SHA-256 hashing is real.
 
+- Outreach channel selection — transparent rules over real fields
+  (segment, balance, activity flag, risk level, open complaints); every
+  recommendation returns the reasons it fired.
+- Outcome feedback loop — recorded outreach outcomes (`retained` /
+  `churned`) override the historical `Churn` label for that customer and
+  are up-weighted (x3) on retrain; `complaint_count` and `outreach_count`
+  from the operational DB are model features. The loop is real and
+  mechanically complete, but with demo-scale outcome volume it will only
+  move individual customers' scores, not the headline AUC — the API
+  reports `feedback_rows_used` honestly.
+
 ## Derived / proxy (deterministic stand-ins for data the dataset lacks)
 - `last_active_days_proxy`, `monthly_txn_count_proxy` — the churn dataset
   has no transaction timestamps, so "recency" and "frequency" for RFM are

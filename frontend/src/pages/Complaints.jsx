@@ -158,7 +158,7 @@ export default function Complaints() {
                   <StatusBadge status={detail.status} />
                 </div>
                 <div className="flex items-center gap-3 text-xs text-gray-500 mb-3">
-                  <Link to={`/pulse?customer=${detail.customerId}`} className="flex items-center gap-1 text-gold hover:underline">
+                  <Link to={`/customers/${detail.customerId}`} className="flex items-center gap-1 text-gold hover:underline">
                     <Link2 size={12} /> {detail.customerName} · {detail.accountNo}
                   </Link>
                   <span>&middot;</span>

@@ -12,6 +12,8 @@ import MarketSentiment from './pages/MarketSentiment';
 import Complaints from './pages/Complaints';
 import Assistant from './pages/Assistant';
 import Blockchain from './pages/Blockchain';
+import Customer360 from './pages/Customer360';
+import Outreach from './pages/Outreach';
 
 function Protected({ children }) {
   const { isAuthenticated } = useAuth();
@@ -27,6 +29,8 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<Protected><Overview /></Protected>} />
           <Route path="/pulse" element={<Protected><Pulse /></Protected>} />
+          <Route path="/customers/:id" element={<Protected><Customer360 /></Protected>} />
+          <Route path="/outreach" element={<Protected><Outreach /></Protected>} />
           <Route path="/segments" element={<Protected><Segments /></Protected>} />
           <Route path="/forecast" element={<Protected><Forecast /></Protected>} />
           <Route path="/trends" element={<Protected><ProductTrends /></Protected>} />

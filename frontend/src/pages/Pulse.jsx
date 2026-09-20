@@ -2,9 +2,11 @@ import { BarElement, CategoryScale, Chart as ChartJS, LinearScale, Tooltip } fro
 import { Activity, AlertTriangle, Gauge, ShieldAlert, TrendingDown, Users, X } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Bar } from 'react-chartjs-2';
+import { Link } from 'react-router-dom';
 import { client } from '../api/client';
-import { RiskBadge, Spinner } from '../components/Badge';
+import { RiskBadge } from '../components/Badge';
 import Card from '../components/Card';
+import OutreachPanel from '../components/OutreachPanel';
 import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
 import { chartColors } from '../lib/chartTheme';
@@ -186,10 +188,11 @@ export default function Pulse() {
                       <RiskBadge level={c.churnRiskLevel}>{c.churnRiskScore.toFixed(0)}% {c.churnRiskLevel}</RiskBadge>
                     </td>
                     <td className="text-gray-300 tabular-nums">₹{c.balance.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
-                    <td>
-                      <button className="text-gold text-xs font-medium hover:underline" onClick={() => setSelected(c)}>
-                        Details →
+                    <td className="whitespace-nowrap">
+                      <button className="text-gold text-xs font-medium hover:underline mr-3" onClick={() => setSelected(c)}>
+                        Quick view
                       </button>
+                      <Link to={`/customers/${c.customerId}`} className="text-gray-400 text-xs hover:text-gold">360 →</Link>
                     </td>
                   </tr>
                 ))}
@@ -204,7 +207,7 @@ export default function Pulse() {
           className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 fade-in"
           onClick={() => setSelected(null)}
         >
-          <div className="card p-6 w-[460px] shadow-glow" onClick={(e) => e.stopPropagation()}>
+          <div className="card p-6 w-[480px] max-h-[90vh] overflow-y-auto shadow-glow" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between mb-4">
               <div>
                 <h2 className="text-white font-bold text-lg">{selected.surname}</h2>
@@ -236,7 +239,7 @@ export default function Pulse() {
             <div className="flex items-center gap-1.5 text-gray-400 text-xs mb-2">
               <AlertTriangle size={13} /> Risk drivers
             </div>
-            <ul className="space-y-1.5">
+            <ul className="space-y-1.5 mb-4">
               {selected.churnDrivers.map((d, i) => (
                 <li key={i} className="text-sm text-gray-300 flex gap-2">
                   <span className="mt-1.5 w-1 h-1 rounded-full bg-risk-high shrink-0" />
@@ -244,6 +247,14 @@ export default function Pulse() {
                 </li>
               ))}
             </ul>
+
+            <div className="border-t border-white/[0.06] pt-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="kicker">Predictive outreach</span>
+                <Link to={`/customers/${selected.customerId}`} className="text-xs text-gray-400 hover:text-gold">Full 360 →</Link>
+              </div>
+              <OutreachPanel customerId={selected.customerId} />
+            </div>
           </div>
         </div>
       )}

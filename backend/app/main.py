@@ -12,6 +12,7 @@ from .routers import (
     complaints_routes,
     customers,
     forecast_routes,
+    outreach_routes,
     segments,
     sentiment_routes,
     trends_routes,
@@ -24,8 +25,8 @@ from .services.complaints import seed_complaints_if_empty
 async def lifespan(app: FastAPI):
     # Train (or load a cached) churn model once at startup instead of on
     # first request, so the first API call isn't slow.
-    get_model_bundle()
     init_db()
+    get_model_bundle()
     with session_scope() as session:
         seed_complaints_if_empty(session)
     yield
@@ -48,6 +49,7 @@ app.include_router(forecast_routes.router)
 app.include_router(trends_routes.router)
 app.include_router(sentiment_routes.router)
 app.include_router(complaints_routes.router)
+app.include_router(outreach_routes.router)
 app.include_router(assistant_routes.router)
 app.include_router(blockchain_routes.router)
 

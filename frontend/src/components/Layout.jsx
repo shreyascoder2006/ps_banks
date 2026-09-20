@@ -1,5 +1,5 @@
 import {
-  Activity, LayoutDashboard, Landmark, LineChart, LogOut, MessagesSquare,
+  Activity, LayoutDashboard, Landmark, LineChart, LogOut, Megaphone, MessagesSquare,
   ShieldCheck, Sparkles, TrendingUp, Users,
 } from 'lucide-react';
 import React from 'react';
@@ -9,6 +9,7 @@ import { useAuth } from '../auth/AuthContext';
 const NAV_ITEMS = [
   { to: '/', label: 'Overview', icon: LayoutDashboard, end: true },
   { to: '/pulse', label: 'Churn Pulse', icon: Activity },
+  { to: '/outreach', label: 'Outreach', icon: Megaphone },
   { to: '/segments', label: 'Segments & Offers', icon: Users },
   { to: '/forecast', label: 'Growth Forecast', icon: TrendingUp },
   { to: '/trends', label: 'Product Trends', icon: LineChart },
