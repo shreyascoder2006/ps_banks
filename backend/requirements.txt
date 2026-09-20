@@ -1,0 +1,16 @@
+fastapi
+uvicorn[standard]
+pandas
+numpy
+scikit-learn
+joblib
+pyjwt
+passlib
+python-multipart
+pypdf
+requests
+web3
+pytrends
+yfinance
+vaderSentiment
+python-dotenv
