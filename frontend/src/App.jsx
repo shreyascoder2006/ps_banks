@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import Layout from './components/Layout';
+import { ToastProvider } from './components/Toast';
 import Login from './pages/Login';
 import Overview from './pages/Overview';
 import Pulse from './pages/Pulse';
@@ -25,6 +26,7 @@ function Protected({ children }) {
 export default function App() {
   return (
     <AuthProvider>
+      <ToastProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -42,6 +44,7 @@ export default function App() {
           <Route path="/blockchain" element={<Protected><Blockchain /></Protected>} />
         </Routes>
       </BrowserRouter>
+      </ToastProvider>
     </AuthProvider>
   );
 }

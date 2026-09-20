@@ -19,10 +19,12 @@ from ..data.loader import PRODUCTS, load_customers
 NEW_COHORT_MAX_TENURE = 3
 
 
-def get_product_trends() -> list[dict]:
+def get_product_trends(max_tenure: int = NEW_COHORT_MAX_TENURE, geography: str | None = None) -> list[dict]:
     df = load_customers()
-    new_cohort = df[df["Tenure"] <= NEW_COHORT_MAX_TENURE]
-    old_cohort = df[df["Tenure"] > NEW_COHORT_MAX_TENURE]
+    if geography:
+        df = df[df["Geography"] == geography]
+    new_cohort = df[df["Tenure"] <= max_tenure]
+    old_cohort = df[df["Tenure"] > max_tenure]
 
     results = []
     for idx, product in enumerate(PRODUCTS):

@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import CORS_ORIGINS
 from .db import init_db, session_scope
 from .routers import (
+    activity_routes,
     assistant_routes,
     auth_routes,
     blockchain_routes,
@@ -50,6 +51,7 @@ app.include_router(trends_routes.router)
 app.include_router(sentiment_routes.router)
 app.include_router(complaints_routes.router)
 app.include_router(outreach_routes.router)
+app.include_router(activity_routes.router)
 app.include_router(assistant_routes.router)
 app.include_router(blockchain_routes.router)
 

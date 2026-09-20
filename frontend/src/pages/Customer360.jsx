@@ -7,6 +7,8 @@ import Card from '../components/Card';
 import OutreachPanel from '../components/OutreachPanel';
 import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
+import WhatIfSimulator from '../components/WhatIfSimulator';
+import { useToast } from '../components/Toast';
 
 function Field({ label, value }) {
   return (
@@ -26,6 +28,7 @@ const OUTCOME_STYLES = {
 export default function Customer360() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const toast = useToast();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
 
@@ -128,12 +131,18 @@ export default function Customer360() {
         </div>
 
         <div className="space-y-4">
+          <Card title="What-if intervention simulator">
+            <WhatIfSimulator customerId={data.customerId} baseline={data} />
+          </Card>
           <Card title="Current offer">
             <div className="text-sm text-gold font-medium mb-1">{data.offer.offer_type}</div>
             <p className="text-sm text-gray-400 leading-relaxed">{data.offer.message}</p>
           </Card>
           <Card title="Predictive outreach" action={<Megaphone size={14} className="text-gold" />}>
-            <OutreachPanel customerId={data.customerId} onTriggered={load} />
+            <OutreachPanel
+              customerId={data.customerId}
+              onTriggered={(r) => { load(); toast(`Outreach #${r.action.id} triggered via ${r.action.channelLabel} · audit ${r.audit?.status}`, 'success'); }}
+            />
           </Card>
           <Link to="/complaints" className="block text-xs text-gold hover:underline">Open Resolve inbox →</Link>
         </div>

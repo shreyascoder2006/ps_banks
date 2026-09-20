@@ -1,5 +1,5 @@
 import { BarElement, CategoryScale, Chart as ChartJS, LinearScale, Tooltip } from 'chart.js';
-import { Activity, AlertTriangle, Gauge, ShieldAlert, TrendingDown, Users, X } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowUpDown, ChevronLeft, ChevronRight, Gauge, Search, ShieldAlert, TrendingDown, Users, X } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Bar } from 'react-chartjs-2';
 import { Link } from 'react-router-dom';
@@ -10,6 +10,7 @@ import OutreachPanel from '../components/OutreachPanel';
 import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
 import { chartColors } from '../lib/chartTheme';
+import { useDebounce } from '../lib/hooks';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip);
 
@@ -40,14 +41,47 @@ export default function Pulse() {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
+  const [q, setQ] = useState('');
+  const [branch, setBranch] = useState('');
+  const [branches, setBranches] = useState([]);
+  const [sort, setSort] = useState({ key: 'risk', order: 'desc' });
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
+  const debouncedQ = useDebounce(q, 250);
+  const PAGE = 25;
+
+  useEffect(() => { setPage(0); }, [riskLevel, debouncedQ, branch, sort]);
 
   useEffect(() => {
     setLoading(true);
     client
-      .get('/customers', { params: riskLevel ? { riskLevel } : {} })
-      .then((res) => setCustomers(res.data.customers))
+      .get('/customers', {
+        params: {
+          ...(riskLevel ? { riskLevel } : {}),
+          ...(debouncedQ ? { q: debouncedQ } : {}),
+          ...(branch ? { branch } : {}),
+          sort: sort.key, order: sort.order, limit: PAGE, offset: page * PAGE,
+        },
+      })
+      .then((res) => { setCustomers(res.data.customers); setTotal(res.data.total); })
       .finally(() => setLoading(false));
-  }, [riskLevel]);
+  }, [riskLevel, debouncedQ, branch, sort, page]);
+
+  useEffect(() => {
+    client.get('/customers/branches').then((res) => setBranches(res.data.branches));
+  }, []);
+
+  const toggleSort = (key) =>
+    setSort((s) => (s.key === key ? { key, order: s.order === 'desc' ? 'asc' : 'desc' } : { key, order: 'desc' }));
+
+  const SortTh = ({ k, children }) => (
+    <th className="cursor-pointer select-none hover:text-gray-300" onClick={() => toggleSort(k)}>
+      <span className="inline-flex items-center gap-1">
+        {children}
+        {sort.key === k && <ArrowUpDown size={11} className="text-gold" />}
+      </span>
+    </th>
+  );
 
   useEffect(() => {
     client.get('/customers/model/metrics').then((res) => setMetrics(res.data));
@@ -145,7 +179,7 @@ export default function Pulse() {
         </Card>
       )}
 
-      <div className="flex gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
         {RISK_FILTERS.map((f) => (
           <button
             key={f.value}
@@ -155,23 +189,45 @@ export default function Pulse() {
             {f.label}
           </button>
         ))}
+        <div className="ml-auto flex items-center gap-2">
+          <select className="input-field py-1.5 text-xs w-44" value={branch} onChange={(e) => setBranch(e.target.value)}>
+            <option value="">All branches</option>
+            {branches.map((b) => <option key={b.branch} value={b.branch}>{b.branch} · {b.critical} critical</option>)}
+          </select>
+          <div className="relative">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
+            <input className="input-field pl-8 py-1.5 text-xs w-56" placeholder="Search surname, account, ID…" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+        </div>
       </div>
 
-      <Card title={`Customers (${customers.length})`} noPad>
+      <Card
+        title={`Customers (${total.toLocaleString()})`}
+        noPad
+        action={
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <span>{page * PAGE + 1}–{Math.min((page + 1) * PAGE, total)} of {total}</span>
+            <button disabled={page === 0} onClick={() => setPage((p) => p - 1)} className="btn-ghost p-1 disabled:opacity-30"><ChevronLeft size={13} /></button>
+            <button disabled={(page + 1) * PAGE >= total} onClick={() => setPage((p) => p + 1)} className="btn-ghost p-1 disabled:opacity-30"><ChevronRight size={13} /></button>
+          </div>
+        }
+      >
         {loading ? (
           <div className="p-5 space-y-2">
             {Array.from({ length: 6 }).map((_, i) => <div key={i} className="skeleton h-10" />)}
           </div>
+        ) : customers.length === 0 ? (
+          <p className="p-6 text-sm text-gray-500 text-center">No customers match these filters.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="table-modern">
               <thead>
                 <tr>
-                  <th>Customer</th>
+                  <SortTh k="surname">Customer</SortTh>
                   <th>Branch</th>
                   <th>Segment</th>
-                  <th>Risk</th>
-                  <th>Balance</th>
+                  <SortTh k="risk">Risk</SortTh>
+                  <SortTh k="balance">Balance</SortTh>
                   <th></th>
                 </tr>
               </thead>

@@ -55,10 +55,29 @@ function ComponentRow({ meta, comp }) {
 
 export default function MarketSentiment() {
   const [data, setData] = useState(null);
+  const [headlines, setHeadlines] = useState('');
+  const [scored, setScored] = useState(null);
+  const [scoring, setScoring] = useState(false);
 
   useEffect(() => {
     client.get('/sentiment/market').then((res) => setData(res.data));
   }, []);
+
+  const scoreHeadlines = async (e) => {
+    e.preventDefault();
+    setScoring(true);
+    try {
+      const res = await client.post('/sentiment/headlines', { headlines: headlines.split('\n') });
+      setScored(res.data);
+      if (res.data.score != null && data) {
+        const comps = { ...data.components, news_sentiment: { score: res.data.score, source: res.data.source, detail: res.data.detail } };
+        const composite = Math.round(((comps.search_interest.score + comps.banking_stocks.score + comps.news_sentiment.score) / 3) * 10) / 10;
+        setData({ ...data, components: comps, composite_score: composite });
+      }
+    } finally {
+      setScoring(false);
+    }
+  };
 
   return (
     <div>
@@ -86,6 +105,34 @@ export default function MarketSentiment() {
           </Card>
         </div>
       )}
+
+      <Card title="Score your own headlines (VADER, live)" className="mt-4">
+        <form onSubmit={scoreHeadlines} className="space-y-3">
+          <textarea
+            className="input-field py-2 min-h-[96px] resize-y"
+            placeholder={'One headline per line, e.g.\nRBI cuts repo rate by 25 bps\nMajor bank hit by UPI outage for 6 hours'}
+            value={headlines}
+            onChange={(e) => setHeadlines(e.target.value)}
+          />
+          <div className="flex items-center gap-3">
+            <button type="submit" disabled={scoring || !headlines.trim()} className="btn-primary px-4 py-2 text-sm">{scoring ? 'Scoring…' : 'Score headlines'}</button>
+            <span className="text-xs text-gray-500">Replaces the canned news leg above with your input and recomputes the composite.</span>
+          </div>
+        </form>
+        {scored?.per_headline?.length > 0 && (
+          <div className="mt-4 space-y-1.5 fade-in">
+            {scored.per_headline.map((h, i) => (
+              <div key={i} className="flex items-center gap-3 text-sm">
+                <div className="w-20 h-1.5 rounded-full bg-white/[0.06] overflow-hidden relative">
+                  <div className={`absolute top-0 h-full ${h.compound >= 0 ? 'bg-risk-low left-1/2' : 'bg-risk-critical right-1/2'}`} style={{ width: `${Math.abs(h.compound) * 50}%` }} />
+                </div>
+                <span className={`w-12 tabular-nums text-xs ${h.compound >= 0 ? 'text-risk-low' : 'text-risk-critical'}`}>{h.compound > 0 ? '+' : ''}{h.compound}</span>
+                <span className="text-gray-300 truncate">{h.headline}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

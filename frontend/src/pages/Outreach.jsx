@@ -9,6 +9,7 @@ import { Spinner } from '../components/Badge';
 import Card from '../components/Card';
 import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
+import { useToast } from '../components/Toast';
 import { baseGridOptions, chartColors } from '../lib/chartTheme';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip);
@@ -21,6 +22,7 @@ const OUTCOME_STYLES = {
 
 export default function Outreach() {
   const { role } = useAuth();
+  const toast = useToast();
   const [actions, setActions] = useState(null);
   const [eff, setEff] = useState(null);
   const [busy, setBusy] = useState(null);
@@ -36,6 +38,7 @@ export default function Outreach() {
     setBusy(`${id}-${outcome}`);
     try {
       await client.post(`/outreach/${id}/outcome`, { outcome });
+      toast(`Outreach #${id} marked ${outcome.replace('_', ' ')} — feeds the next retrain`, 'success');
       load();
     } finally {
       setBusy(null);
@@ -47,6 +50,7 @@ export default function Outreach() {
     try {
       const res = await client.post('/outreach/retrain');
       setRetrain(res.data.metrics);
+      toast(`Model retrained with ${res.data.metrics.feedback_rows_used} outcome-labelled customer(s)`, 'success');
       load();
     } finally {
       setBusy(null);

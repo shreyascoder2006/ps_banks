@@ -1,10 +1,15 @@
-import { BarChart3, Bot, CheckCircle2, Clock, Copy, FileEdit, Inbox, Link2, MessageSquare, Plus, Send, ShieldCheck, Sparkles, TriangleAlert, X } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import { BarChart3, Bot, CheckCircle2, CheckSquare, Clock, Copy, FileEdit, Inbox, KanbanSquare, Link2, List, MessageSquare, Plus, Search, Send, ShieldCheck, Sparkles, Square, TriangleAlert, UserRound, X } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { client } from '../api/client';
 import { RiskBadge, Spinner } from '../components/Badge';
 import Card from '../components/Card';
 import PageHeader from '../components/PageHeader';
+import { useToast } from '../components/Toast';
+import { useInterval, useNow } from '../lib/hooks';
+
+const STATUSES = ['open', 'in_progress', 'escalated', 'resolved'];
+const AGENTS = ['agent', 'admin', 'rm-team', 'fraud-desk', 'ombudsman-cell'];
 
 const STATUS_STYLES = {
   open: 'bg-risk-medium/15 text-risk-medium border-risk-medium/20',
@@ -17,11 +22,10 @@ function StatusBadge({ status }) {
   return <span className={`badge border ${STATUS_STYLES[status] || STATUS_STYLES.open}`}>{status.replace('_', ' ')}</span>;
 }
 
-function slaInfo(c) {
+function slaInfo(c, now = Date.now()) {
   if (c.status === 'resolved') return { label: 'Resolved', pct: 100, tone: 'bg-risk-low', breached: false };
   const start = new Date(c.timestamp).getTime();
   const deadline = start + c.slaHours * 3600 * 1000;
-  const now = Date.now();
   const pct = Math.min(100, Math.max(0, ((now - start) / (deadline - start)) * 100));
   const remainingMs = deadline - now;
   const breached = remainingMs < 0;
@@ -39,6 +43,82 @@ function SourcePill({ source }) {
   );
 }
 
+const COLUMN_META = {
+  open: { label: 'Open', accent: 'border-risk-medium/40' },
+  in_progress: { label: 'In progress', accent: 'border-gold/40' },
+  escalated: { label: 'Escalated', accent: 'border-risk-high/40' },
+  resolved: { label: 'Resolved', accent: 'border-risk-low/40' },
+};
+
+function Board({ complaints, now, onMove, onOpen, selectedId, movingId }) {
+  const [over, setOver] = useState(null);
+  const byStatus = useMemo(
+    () => STATUSES.reduce((acc, s) => ({ ...acc, [s]: complaints.filter((c) => c.status === s) }), {}),
+    [complaints],
+  );
+
+  return (
+    <div className="grid grid-cols-4 gap-3">
+      {STATUSES.map((status) => (
+        <div
+          key={status}
+          onDragOver={(e) => { e.preventDefault(); setOver(status); }}
+          onDragLeave={() => setOver(null)}
+          onDrop={(e) => {
+            e.preventDefault();
+            const id = e.dataTransfer.getData('text/complaint-id');
+            const from = e.dataTransfer.getData('text/from-status');
+            setOver(null);
+            if (id && from !== status) onMove(id, status);
+          }}
+          className={`card border-t-2 ${COLUMN_META[status].accent} min-h-[60vh] transition-colors ${over === status ? 'bg-gold/[0.06]' : ''}`}
+        >
+          <div className="flex items-center justify-between px-3 pt-3 pb-2">
+            <span className="kicker">{COLUMN_META[status].label}</span>
+            <span className="text-xs text-gray-500 tabular-nums">{byStatus[status].length}</span>
+          </div>
+          <div className="px-2 pb-2 space-y-2">
+            {byStatus[status].map((c) => {
+              const sla = slaInfo(c, now);
+              return (
+                <div
+                  key={c.id}
+                  draggable={status !== 'resolved'}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('text/complaint-id', c.id);
+                    e.dataTransfer.setData('text/from-status', status);
+                    e.dataTransfer.effectAllowed = 'move';
+                  }}
+                  onClick={() => onOpen(c)}
+                  className={`rounded-lg border p-2.5 cursor-grab active:cursor-grabbing transition-all ${
+                    selectedId === c.id ? 'bg-gold/[0.10] border-gold/30' : 'bg-white/[0.03] border-white/[0.06] hover:border-white/20'
+                  } ${movingId === c.id ? 'opacity-40' : ''} ${sla.breached ? 'ring-1 ring-risk-critical/40' : ''}`}
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-white text-sm font-medium truncate">{c.customerName}</span>
+                    <RiskBadge level={c.severity}>{c.severity}</RiskBadge>
+                  </div>
+                  <div className="text-gray-400 text-xs truncate">{c.subject}</div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="flex-1 h-1 rounded-full bg-white/[0.06] overflow-hidden">
+                      <div className={`h-full ${sla.tone}`} style={{ width: `${sla.pct}%` }} />
+                    </div>
+                    <span className={`text-[10px] whitespace-nowrap ${sla.breached ? 'text-risk-critical' : 'text-gray-500'}`}>{sla.label}</span>
+                  </div>
+                  {c.assignee && <div className="text-[10px] text-gray-500 mt-1.5 flex items-center gap-1"><UserRound size={10} /> {c.assignee}</div>}
+                </div>
+              );
+            })}
+            {byStatus[status].length === 0 && (
+              <div className="text-xs text-gray-600 text-center py-6 border border-dashed border-white/[0.06] rounded-lg">Drop here</div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function Complaints() {
   const [complaints, setComplaints] = useState([]);
   const [filter, setFilter] = useState('');
@@ -50,13 +130,20 @@ export default function Complaints() {
   const [showNew, setShowNew] = useState(false);
   const [newForm, setNewForm] = useState({ customer_id: '', subject: '', body: '', channel: 'portal' });
   const [newError, setNewError] = useState('');
+  const [view, setView] = useState('inbox');
+  const [q, setQ] = useState('');
+  const [checked, setChecked] = useState(() => new Set());
+  const [movingId, setMovingId] = useState(null);
+  const toast = useToast();
+  const now = useNow(15000);
 
   const loadList = () =>
-    client.get('/complaints', { params: filter ? { status: filter } : {} }).then((res) => setComplaints(res.data.complaints));
+    client.get('/complaints', { params: filter && view === 'inbox' ? { status: filter } : {} }).then((res) => setComplaints(res.data.complaints));
 
   const loadDetail = (id) => client.get(`/complaints/${id}`).then((res) => setDetail(res.data));
 
-  useEffect(() => { loadList(); }, [filter]);
+  useEffect(() => { loadList(); }, [filter, view]);
+  useInterval(loadList, 30000);
 
   const select = (c) => {
     setSelected(c.id);
@@ -69,8 +156,10 @@ export default function Complaints() {
     setBusy(key);
     try {
       await fn();
-      await loadDetail(selected);
+      if (selected) await loadDetail(selected);
       await loadList();
+    } catch (err) {
+      toast(err.response?.data?.detail || 'Action failed', 'error');
     } finally {
       setBusy(null);
     }
@@ -80,16 +169,69 @@ export default function Complaints() {
     run(status, async () => {
       const res = await client.patch(`/complaints/${selected}/status`, { status, note });
       if (res.data.audit) setAudit(res.data.audit);
+      toast(`${selected} → ${status.replace('_', ' ')}${res.data.audit ? ` · audit ${res.data.audit.status}` : ''}`, status === 'resolved' ? 'success' : 'info');
     });
+
+  const moveCard = async (id, status) => {
+    setMovingId(id);
+    try {
+      const res = await client.patch(`/complaints/${id}/status`, { status, note: 'Moved on board' });
+      toast(`${id} → ${status.replace('_', ' ')}${res.data.audit ? ` · audit ${res.data.audit.status}` : ''}`, status === 'resolved' ? 'success' : 'info');
+      if (selected === id) { setAudit(res.data.audit); await loadDetail(id); }
+      await loadList();
+    } catch (err) {
+      toast(err.response?.data?.detail || 'Move failed', 'error');
+    } finally {
+      setMovingId(null);
+    }
+  };
+
+  const assign = (assignee) =>
+    run('assign', async () => {
+      await client.patch(`/complaints/${selected}/assign`, { assignee });
+      toast(`${selected} assigned to ${assignee}`, 'info');
+    });
+
+  const bulk = async (kind, value) => {
+    const ids = [...checked];
+    setBusy('bulk');
+    try {
+      await Promise.all(ids.map((id) =>
+        kind === 'assign'
+          ? client.patch(`/complaints/${id}/assign`, { assignee: value })
+          : client.patch(`/complaints/${id}/status`, { status: value, note: 'Bulk action' }),
+      ));
+      toast(`${ids.length} complaint(s) ${kind === 'assign' ? `assigned to ${value}` : `→ ${value.replace('_', ' ')}`}`, 'success');
+      setChecked(new Set());
+      await loadList();
+      if (selected) await loadDetail(selected);
+    } catch (err) {
+      toast('Bulk action failed', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const toggleChecked = (id) =>
+    setChecked((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const sendReply = () =>
     run('reply', async () => {
       await client.post(`/complaints/${selected}/messages`, { body: reply });
       setReply('');
+      toast('Reply sent to customer', 'success');
     });
 
+  const visible = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return complaints;
+    return complaints.filter((c) =>
+      [c.customerName, c.subject, c.id, c.category, c.accountNo, c.assignee].some((v) => v && String(v).toLowerCase().includes(needle)),
+    );
+  }, [complaints, q]);
+
   const counts = complaints.reduce((acc, c) => ({ ...acc, [c.status]: (acc[c.status] || 0) + 1 }), {});
-  const breachedCount = complaints.filter((c) => slaInfo(c).breached).length;
+  const breachedCount = complaints.filter((c) => slaInfo(c, now).breached).length;
 
   const submitNew = async (e) => {
     e.preventDefault();
@@ -149,8 +291,12 @@ export default function Complaints() {
         </div>
       )}
 
-      <div className="flex items-center gap-2 mb-4">
-        {['', 'open', 'in_progress', 'escalated', 'resolved'].map((s) => (
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <div className="flex rounded-lg overflow-hidden border border-white/10">
+          <button onClick={() => setView('inbox')} className={`px-3 py-1.5 text-xs flex items-center gap-1.5 ${view === 'inbox' ? 'bg-gold text-navy-dark' : 'text-gray-400 hover:bg-white/[0.05]'}`}><List size={13} /> Inbox</button>
+          <button onClick={() => setView('board')} className={`px-3 py-1.5 text-xs flex items-center gap-1.5 ${view === 'board' ? 'bg-gold text-navy-dark' : 'text-gray-400 hover:bg-white/[0.05]'}`}><KanbanSquare size={13} /> Board</button>
+        </div>
+        {view === 'inbox' && ['', ...STATUSES].map((s) => (
           <button
             key={s}
             onClick={() => setFilter(s)}
@@ -159,45 +305,87 @@ export default function Complaints() {
             {s ? s.replace('_', ' ') : 'All'}{s && counts[s] ? ` · ${counts[s]}` : ''}
           </button>
         ))}
+        <div className="relative ml-auto">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input className="input-field pl-8 py-1.5 text-xs w-56" placeholder="Search name, subject, ID, assignee…" value={q} onChange={(e) => setQ(e.target.value)} />
+        </div>
         {breachedCount > 0 && (
-          <span className="ml-auto badge border bg-risk-critical/15 text-risk-critical border-risk-critical/20">
+          <span className="badge border bg-risk-critical/15 text-risk-critical border-risk-critical/20">
             <TriangleAlert size={12} /> {breachedCount} SLA breached
           </span>
         )}
       </div>
 
+      {checked.size > 0 && (
+        <div className="fade-in mb-4 card px-4 py-2.5 flex items-center gap-3 text-sm border-gold/20">
+          <CheckSquare size={15} className="text-gold" />
+          <span className="text-white">{checked.size} selected</span>
+          <span className="text-gray-600">|</span>
+          <span className="text-gray-400 text-xs">Assign to</span>
+          {AGENTS.map((a) => <button key={a} onClick={() => bulk('assign', a)} disabled={busy === 'bulk'} className="btn-chip bg-white/[0.05] text-gray-300 hover:bg-white/[0.1]">{a}</button>)}
+          <span className="text-gray-600">|</span>
+          <button onClick={() => bulk('status', 'escalated')} disabled={busy === 'bulk'} className="btn-chip bg-risk-high/15 text-risk-high">Escalate</button>
+          <button onClick={() => bulk('status', 'resolved')} disabled={busy === 'bulk'} className="btn-chip bg-risk-low/15 text-risk-low">Resolve</button>
+          <button onClick={() => setChecked(new Set())} className="ml-auto text-xs text-gray-500 hover:text-white">Clear</button>
+        </div>
+      )}
+
+      {view === 'board' ? (
+        <div className="space-y-4">
+          <Board complaints={visible} now={now} onMove={moveCard} onOpen={select} selectedId={selected} movingId={movingId} />
+          {detail && (
+            <Card title="Case detail" action={<button onClick={() => { setSelected(null); setDetail(null); }} className="text-gray-500 hover:text-white"><X size={16} /></button>}>
+              {renderDetail()}
+            </Card>
+          )}
+        </div>
+      ) : (
       <div className="grid grid-cols-[340px_minmax(0,1fr)] gap-4 items-start">
-        <Card title={`Inbox (${complaints.length})`} noPad className="max-h-[72vh] overflow-y-auto">
+        <Card title={`Inbox (${visible.length})`} noPad className="max-h-[72vh] overflow-y-auto">
           <div className="px-2 pb-2">
-            {complaints.map((c) => {
-              const sla = slaInfo(c);
+            {visible.length === 0 && <p className="text-xs text-gray-500 text-center py-8">No complaints match.</p>}
+            {visible.map((c) => {
+              const sla = slaInfo(c, now);
+              const isChecked = checked.has(c.id);
               return (
-                <button
+                <div
                   key={c.id}
-                  onClick={() => select(c)}
-                  className={`block w-full text-left px-3 py-2.5 rounded-lg mb-1 transition-colors ${
+                  className={`flex items-start gap-2 px-2 py-2.5 rounded-lg mb-1 transition-colors ${
                     selected === c.id ? 'bg-gold/[0.10] border border-gold/20' : 'hover:bg-white/[0.04] border border-transparent'
                   }`}
                 >
-                  <div className="flex justify-between items-center gap-2">
-                    <span className="text-white text-sm font-medium truncate">{c.customerName}</span>
-                    <RiskBadge level={c.severity}>{c.severity}</RiskBadge>
-                  </div>
-                  <div className="text-gray-500 text-xs truncate mt-0.5">{c.subject}</div>
-                  <div className="flex items-center gap-2 mt-2">
-                    <div className="flex-1 h-1 rounded-full bg-white/[0.06] overflow-hidden">
-                      <div className={`h-full ${sla.tone}`} style={{ width: `${sla.pct}%` }} />
+                  <button onClick={() => toggleChecked(c.id)} className={`mt-0.5 shrink-0 ${isChecked ? 'text-gold' : 'text-gray-600 hover:text-gray-400'}`}>
+                    {isChecked ? <CheckSquare size={15} /> : <Square size={15} />}
+                  </button>
+                  <button onClick={() => select(c)} className="flex-1 min-w-0 text-left">
+                    <div className="flex justify-between items-center gap-2">
+                      <span className="text-white text-sm font-medium truncate">{c.customerName}</span>
+                      <RiskBadge level={c.severity}>{c.severity}</RiskBadge>
                     </div>
-                    <span className={`text-[10px] ${sla.breached ? 'text-risk-critical' : 'text-gray-500'}`}>{sla.label}</span>
-                  </div>
-                </button>
+                    <div className="text-gray-500 text-xs truncate mt-0.5">{c.subject}</div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <div className="flex-1 h-1 rounded-full bg-white/[0.06] overflow-hidden">
+                        <div className={`h-full ${sla.tone}`} style={{ width: `${sla.pct}%` }} />
+                      </div>
+                      <span className={`text-[10px] ${sla.breached ? 'text-risk-critical' : 'text-gray-500'}`}>{sla.label}</span>
+                    </div>
+                  </button>
+                </div>
               );
             })}
           </div>
         </Card>
 
         <Card title="Case detail">
-          {!detail ? (
+          {renderDetail()}
+        </Card>
+      </div>
+      )}
+    </div>
+  );
+
+  function renderDetail() {
+    return !detail ? (
             <div className="text-center py-16 text-gray-500">
               <Inbox size={28} className="mx-auto mb-2 opacity-40" />
               <p className="text-sm">Select a complaint from the inbox.</p>
@@ -209,13 +397,20 @@ export default function Complaints() {
                   <h3 className="text-white font-semibold">{detail.subject}</h3>
                   <RiskBadge level={detail.severity}>{detail.severity}</RiskBadge>
                   <StatusBadge status={detail.status} />
+                  <div className="ml-auto flex items-center gap-1.5 text-xs text-gray-500">
+                    <UserRound size={12} />
+                    <select className="input-field py-1 text-xs w-36" value={detail.assignee || ''} onChange={(e) => e.target.value && assign(e.target.value)} disabled={!!busy}>
+                      <option value="">Unassigned</option>
+                      {AGENTS.map((a) => <option key={a} value={a}>{a}</option>)}
+                    </select>
+                  </div>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-gray-500 mb-3">
                   <Link to={`/customers/${detail.customerId}`} className="flex items-center gap-1 text-gold hover:underline">
                     <Link2 size={12} /> {detail.customerName} · {detail.accountNo}
                   </Link>
                   <span>&middot;</span>
-                  <span className="flex items-center gap-1"><Clock size={12} /> SLA {detail.slaHours}h · {slaInfo(detail).label}</span>
+                  <span className="flex items-center gap-1"><Clock size={12} /> SLA {detail.slaHours}h · {slaInfo(detail, now).label}</span>
                   <span>&middot;</span>
                   <span className="capitalize">{detail.channel}</span>
                   <span>&middot;</span>
@@ -339,9 +534,6 @@ export default function Complaints() {
                 )}
               </div>
             </div>
-          )}
-        </Card>
-      </div>
-    </div>
-  );
+          );
+  }
 }

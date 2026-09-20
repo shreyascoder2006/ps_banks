@@ -12,10 +12,12 @@ ChartJS.register(LineElement, PointElement, CategoryScale, LinearScale, Tooltip,
 
 export default function Forecast() {
   const [data, setData] = useState(null);
+  const [periods, setPeriods] = useState(4);
+  const [scenario, setScenario] = useState(0);
 
   useEffect(() => {
-    client.get('/forecast/growth', { params: { periods: 4 } }).then((res) => setData(res.data));
-  }, []);
+    client.get('/forecast/growth', { params: { periods } }).then((res) => setData(res.data));
+  }, [periods]);
 
   if (!data) {
     return (
@@ -33,6 +35,13 @@ export default function Forecast() {
     data.history.at(-1).new_customers,
     ...data.forecast.map((f) => f.new_customers_forecast),
   ];
+  const scenarioLine = scenario === 0 ? null : [
+    ...Array(data.history.length - 1).fill(null),
+    data.history.at(-1).new_customers,
+    ...data.forecast.map((f, i) => Math.round(f.new_customers_forecast * (1 + scenario / 100) ** (i + 1))),
+  ];
+  const scenarioTotal = scenarioLine ? scenarioLine.slice(data.history.length).reduce((a, b) => a + b, 0) : null;
+  const baseTotal = data.forecast.reduce((a, f) => a + f.new_customers_forecast, 0);
 
   const chartData = {
     labels,
@@ -57,6 +66,16 @@ export default function Forecast() {
         fill: false,
         tension: 0.3,
       },
+      ...(scenarioLine ? [{
+        label: `Scenario (${scenario > 0 ? '+' : ''}${scenario}%/yr)`,
+        data: scenarioLine,
+        borderColor: scenario > 0 ? chartColors.green : chartColors.red,
+        borderDash: [2, 3],
+        pointRadius: 3,
+        pointBackgroundColor: scenario > 0 ? chartColors.green : chartColors.red,
+        fill: false,
+        tension: 0.3,
+      }] : []),
     ],
   };
 
@@ -85,9 +104,32 @@ export default function Forecast() {
       </div>
 
       <Card title="Growth trajectory">
+        <div className="grid grid-cols-2 gap-6 mb-4">
+          <div>
+            <div className="flex justify-between text-sm mb-1">
+              <span className="text-gray-300">Forecast horizon</span>
+              <span className="text-white tabular-nums">{periods} yr</span>
+            </div>
+            <input type="range" min={1} max={8} step={1} value={periods} onChange={(e) => setPeriods(Number(e.target.value))} className="w-full accent-[#d4af37]" />
+          </div>
+          <div>
+            <div className="flex justify-between text-sm mb-1">
+              <span className="text-gray-300">Growth scenario (vs. trend)</span>
+              <span className={`tabular-nums ${scenario > 0 ? 'text-risk-low' : scenario < 0 ? 'text-risk-critical' : 'text-white'}`}>{scenario > 0 ? '+' : ''}{scenario}% / yr</span>
+            </div>
+            <input type="range" min={-20} max={20} step={1} value={scenario} onChange={(e) => setScenario(Number(e.target.value))} className="w-full accent-[#d4af37]" />
+          </div>
+        </div>
         <div className="h-72">
           <Line data={chartData} options={baseGridOptions()} />
         </div>
+        {scenarioLine && (
+          <div className="mt-3 text-sm text-gray-400 flex items-center gap-2 fade-in">
+            Over {periods} yr: trend <span className="text-white tabular-nums">{Math.round(baseTotal).toLocaleString()}</span> new customers vs. scenario
+            <span className={`font-semibold tabular-nums ${scenario > 0 ? 'text-risk-low' : 'text-risk-critical'}`}>{scenarioTotal.toLocaleString()}</span>
+            ({scenarioTotal - Math.round(baseTotal) > 0 ? '+' : ''}{(scenarioTotal - Math.round(baseTotal)).toLocaleString()})
+          </div>
+        )}
       </Card>
     </div>
   );

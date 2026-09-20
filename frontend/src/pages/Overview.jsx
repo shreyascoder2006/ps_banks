@@ -1,8 +1,9 @@
 import { ArcElement, Chart as ChartJS, Legend, Tooltip } from 'chart.js';
 import {
-  ArrowRight, Inbox, LayoutDashboard, ShieldAlert, Sparkles, TrendingUp, Users, Wallet,
+  Activity, ArrowRight, CheckCircle2, Inbox, LayoutDashboard, Megaphone, RefreshCw, ShieldAlert, Sparkles, TrendingUp, Users, Wallet,
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
+import { useInterval } from '../lib/hooks';
 import { Doughnut } from 'react-chartjs-2';
 import { Link } from 'react-router-dom';
 import { client } from '../api/client';
@@ -18,26 +19,30 @@ const RISK_ORDER = ['critical', 'high', 'medium', 'low'];
 const RISK_COLORS = { critical: chartColors.red, high: '#f59e0b', medium: chartColors.blue, low: chartColors.green };
 
 export default function Overview() {
-  const [customers, setCustomers] = useState(null);
+  const [stats, setStats] = useState(null);
   const [sentiment, setSentiment] = useState(null);
   const [forecast, setForecast] = useState(null);
   const [complaints, setComplaints] = useState(null);
+  const [activity, setActivity] = useState(null);
+  const [lastRefresh, setLastRefresh] = useState(null);
+
+  const loadLive = () => {
+    client.get('/customers/stats').then((res) => setStats(res.data));
+    client.get('/complaints').then((res) => setComplaints(res.data.complaints));
+    client.get('/activity', { params: { limit: 12 } }).then((res) => { setActivity(res.data.events); setLastRefresh(new Date()); });
+  };
 
   useEffect(() => {
-    client.get('/customers', { params: { limit: 500 } }).then((res) => setCustomers(res.data.customers));
+    loadLive();
     client.get('/sentiment/market').then((res) => setSentiment(res.data));
     client.get('/forecast/growth', { params: { periods: 1 } }).then((res) => setForecast(res.data));
-    client.get('/complaints').then((res) => setComplaints(res.data.complaints));
   }, []);
+  useInterval(loadLive, 30000);
 
-  const riskCounts = customers
-    ? RISK_ORDER.map((level) => customers.filter((c) => c.churnRiskLevel === level).length)
-    : null;
-  const totalBalance = customers ? customers.reduce((s, c) => s + c.balance, 0) : null;
-  const criticalCustomers = customers
-    ? [...customers].sort((a, b) => b.churnRiskScore - a.churnRiskScore).slice(0, 5)
-    : null;
-  const openComplaints = complaints ? complaints.filter((c) => c.status === 'open').length : null;
+  const riskCounts = stats ? RISK_ORDER.map((level) => stats.byRiskLevel[level]) : null;
+  const totalBalance = stats ? stats.totalBalance : null;
+  const criticalCustomers = stats ? stats.watchlist : null;
+  const openComplaints = complaints ? complaints.filter((c) => c.status !== 'resolved').length : null;
 
   return (
     <div>
@@ -45,13 +50,19 @@ export default function Overview() {
         icon={LayoutDashboard}
         title="Overview"
         subtitle="Bank-wide health at a glance — churn exposure, book value, sentiment, and open cases."
+        action={
+          <button onClick={loadLive} className="btn-ghost px-3 py-1.5 text-xs flex items-center gap-1.5">
+            <RefreshCw size={12} /> {lastRefresh ? `Updated ${lastRefresh.toLocaleTimeString()}` : 'Refresh'}
+          </button>
+        }
       />
 
       <div className="grid grid-cols-4 gap-4 mb-6">
-        <StatCard label="Customers tracked" value={customers ? customers.length : '—'} icon={Users} tone="gold" />
+        <StatCard label="Customers tracked" value={stats ? stats.total.toLocaleString() : '—'} icon={Users} tone="gold" />
         <StatCard
           label="Critical risk"
-          value={customers ? customers.filter((c) => c.churnRiskLevel === 'critical').length : '—'}
+          value={stats ? stats.byRiskLevel.critical.toLocaleString() : '—'}
+          sub={stats ? `₹${(stats.balanceAtRisk / 10000000).toFixed(2)}Cr at risk` : undefined}
           icon={ShieldAlert}
           tone="red"
         />
@@ -189,6 +200,37 @@ export default function Overview() {
           )}
         </Card>
       </div>
+
+      <Card title="Live activity" className="mt-4" noPad action={<span className="text-[11px] text-gray-500 flex items-center gap-1"><Activity size={11} /> auto-refreshes every 30s</span>}>
+        {!activity ? (
+          <div className="p-5 space-y-2">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton h-8" />)}</div>
+        ) : activity.length === 0 ? (
+          <p className="p-5 text-sm text-gray-500">No activity yet — log a complaint or trigger an outreach.</p>
+        ) : (
+          <ul className="divide-y divide-white/[0.05]">
+            {activity.map((e, i) => {
+              const meta = {
+                complaint_logged: { Icon: Inbox, cls: 'text-risk-medium', to: '/complaints' },
+                complaint_update: { Icon: CheckCircle2, cls: 'text-gray-400', to: '/complaints' },
+                outreach_triggered: { Icon: Megaphone, cls: 'text-gold', to: `/customers/${e.ref.customerId}` },
+                outreach_outcome: { Icon: CheckCircle2, cls: 'text-risk-low', to: '/outreach' },
+              }[e.type] || { Icon: Activity, cls: 'text-gray-400', to: '/' };
+              const Icon = meta.Icon;
+              return (
+                <li key={i}>
+                  <Link to={meta.to} className="flex items-center gap-3 px-5 py-2.5 hover:bg-white/[0.03] transition-colors">
+                    <Icon size={14} className={meta.cls} />
+                    <span className="text-sm text-gray-200 flex-1 truncate">{e.title}</span>
+                    {e.severity && <RiskBadge level={e.severity}>{e.severity}</RiskBadge>}
+                    {e.audit && <span className={`badge ${e.audit === 'stored' ? 'bg-risk-low/15 text-risk-low' : 'bg-gray-500/15 text-gray-400'}`}>chain: {e.audit}</span>}
+                    <span className="text-xs text-gray-500 whitespace-nowrap">{new Date(e.at).toLocaleTimeString()}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Card>
     </div>
   );
 }

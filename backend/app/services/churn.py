@@ -216,6 +216,46 @@ def score_all_customers() -> pd.DataFrame:
     return out
 
 
+SIMULATABLE = {
+    "Is Active Member": int, "Num Of Products": int, "Balance": float, "CreditScore": int,
+    "Tenure": int, "Has Credit Card": int, "complaint_count": int,
+}
+
+
+def simulate(customer_id: int, overrides: dict) -> dict:
+    """Re-score one customer with hypothetical feature values using the
+    real trained model - a what-if intervention simulator. Only fields in
+    SIMULATABLE are accepted; everything else stays as observed."""
+    bundle = get_model_bundle()
+    df = _augment(load_customers())
+    match = df[df["CustomerId"] == customer_id]
+    if match.empty:
+        raise KeyError(f"Customer {customer_id} not found")
+    base = match.iloc[[0]].copy()
+    sim = base.copy()
+    applied = {}
+    for key, value in overrides.items():
+        if key in SIMULATABLE and value is not None:
+            sim[key] = SIMULATABLE[key](value)
+            applied[key] = sim[key].iloc[0].item()
+
+    X_base = _prep_features(base, bundle["geo_enc"], bundle["gender_enc"])
+    X_sim = _prep_features(sim, bundle["geo_enc"], bundle["gender_enc"])
+    p_base = float(bundle["model"].predict_proba(X_base)[0, 1]) * 100
+    p_sim = float(bundle["model"].predict_proba(X_sim)[0, 1]) * 100
+
+    return {
+        "customerId": customer_id,
+        "baselineRisk": round(p_base, 1),
+        "baselineLevel": _risk_level(p_base),
+        "simulatedRisk": round(p_sim, 1),
+        "simulatedLevel": _risk_level(p_sim),
+        "delta": round(p_sim - p_base, 1),
+        "applied": applied,
+        "baselineFeatures": {k: base[k].iloc[0].item() for k in SIMULATABLE},
+    }
+
+
 def get_model_metrics() -> dict:
     bundle = get_model_bundle()
     return {"metrics": bundle["metrics"], "feature_importances": bundle["feature_importances"]}
