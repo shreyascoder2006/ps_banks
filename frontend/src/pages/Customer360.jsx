@@ -8,6 +8,7 @@ import OutreachPanel from '../components/OutreachPanel';
 import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
 import WhatIfSimulator from '../components/WhatIfSimulator';
+import ExplainBars from '../components/ExplainBars';
 import { useToast } from '../components/Toast';
 import { useEvent } from '../lib/realtime';
 
@@ -85,6 +86,9 @@ export default function Customer360() {
             <div className="mt-3 rounded-lg bg-gold/[0.06] border border-gold/10 px-3 py-2 text-sm">
               <span className="text-gold/70 text-[11px] uppercase tracking-wide font-semibold">Recommended action</span>
               <div className="text-white">{data.recommendedAction}</div>
+            </div>
+            <div className="mt-4 pt-4 border-t border-white/[0.06]">
+              <ExplainBars customerId={data.customerId} />
             </div>
           </Card>
 

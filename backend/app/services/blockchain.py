@@ -127,6 +127,32 @@ def list_audit_records(limit: int = 20) -> Dict[str, Any]:
         return {"status": "error", "detail": str(exc), "records": []}
 
 
+def list_blocks(limit: int = 12) -> Dict[str, Any]:
+    """Recent blocks from the demo chain, flagging which ones carry one of
+    our AuditTrail transactions, for the block-explorer strip."""
+    if not _configured():
+        return {"status": "not_configured", "blocks": []}
+    try:
+        web3, contract = _contract()
+        head = web3.eth.block_number
+        target = AUDIT_CONTRACT_ADDRESS.lower()
+        blocks = []
+        for n in range(head, max(-1, head - limit), -1):
+            b = web3.eth.get_block(n, full_transactions=True)
+            audit_txs = [tx for tx in b.transactions if (tx.get("to") or "").lower() == target]
+            blocks.append({
+                "number": n,
+                "timestamp": b.timestamp,
+                "txCount": len(b.transactions),
+                "auditTxCount": len(audit_txs),
+                "hash": b.hash.hex()[:18],
+                "gasUsed": b.gasUsed,
+            })
+        return {"status": "ok", "head": head, "chainId": web3.eth.chain_id, "blocks": blocks[::-1]}
+    except Exception as exc:
+        return {"status": "error", "detail": str(exc), "blocks": []}
+
+
 def get_latest_audit_record() -> Dict[str, Any]:
     if not _configured():
         return {"status": "not_configured", "detail": "Ganache/AuditTrail contract not configured on the server."}

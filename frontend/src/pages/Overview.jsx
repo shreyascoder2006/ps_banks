@@ -13,6 +13,7 @@ import Card from '../components/Card';
 import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
 import BranchMap from '../components/BranchMap';
+import BlockStrip from '../components/BlockStrip';
 import { chartColors } from '../lib/chartTheme';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
@@ -207,6 +208,10 @@ export default function Overview() {
           )}
         </Card>
       </div>
+
+      <Card title="Audit chain" className="mt-4">
+        <BlockStrip limit={10} />
+      </Card>
 
       <Card title="Live activity" className="mt-4" noPad tour="activity" action={<span className="text-[11px] text-gray-500 flex items-center gap-1"><Activity size={11} /> auto-refreshes every 30s</span>}>
         {!activity ? (

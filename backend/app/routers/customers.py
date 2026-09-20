@@ -7,7 +7,7 @@ from sqlmodel import Session, select
 from ..auth import User, get_current_user
 from ..db import get_session
 from ..models import Complaint
-from ..services.churn import get_model_metrics, score_all_customers, simulate
+from ..services.churn import explain, get_model_metrics, score_all_customers, simulate
 from ..services.complaints import to_dict as complaint_to_dict
 from ..services.outreach import list_actions
 from ..services.segmentation import compute_personalised_offer, compute_segments
@@ -117,6 +117,14 @@ class SimulateRequest(BaseModel):
     tenure: Optional[int] = None
     has_credit_card: Optional[int] = None
     complaint_count: Optional[int] = None
+
+
+@router.get("/{customer_id}/explain")
+def explain_customer(customer_id: int, current_user: User = Depends(get_current_user)):
+    try:
+        return explain(customer_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Customer not found")
 
 
 @router.post("/{customer_id}/simulate")

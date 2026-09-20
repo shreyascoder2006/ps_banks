@@ -287,6 +287,56 @@ def simulate(customer_id: int, overrides: dict) -> dict:
     }
 
 
+_EXPLAIN_REFERENCE = {
+    "Is Active Member": ("Re-engaged (active member)", lambda df: 1),
+    "Num Of Products": ("Two-product relationship", lambda df: 2),
+    "Balance": ("Balance at book median", lambda df: float(df.loc[df["Balance"] > 0, "Balance"].median())),
+    "CreditScore": ("Credit score 700", lambda df: 700),
+    "Has Credit Card": ("Holds a credit card", lambda df: 1),
+    "complaint_count": ("No open complaints", lambda df: 0),
+}
+
+
+def explain(customer_id: int) -> dict:
+    """Perturbation-based explanation: for each actionable feature, move it
+    to a 'healthy' reference value and measure how much the model's risk
+    changes. Honest about what it is - single-feature perturbation, not
+    SHAP - but it answers 'what is driving this score' with the real model."""
+    bundle = get_model_bundle()
+    df = _augment(load_customers())
+    match = df[df["CustomerId"] == customer_id]
+    if match.empty:
+        raise KeyError(f"Customer {customer_id} not found")
+    base = match.iloc[[0]]
+    p_base = float(bundle["model"].predict_proba(_prep_features(base, bundle["geo_enc"], bundle["gender_enc"]))[0, 1]) * 100
+
+    contributions = []
+    for feature, (label, ref_fn) in _EXPLAIN_REFERENCE.items():
+        ref_value = ref_fn(df)
+        current = base[feature].iloc[0].item()
+        if current == ref_value:
+            continue
+        sim = base.copy()
+        sim[feature] = ref_value
+        p_sim = float(bundle["model"].predict_proba(_prep_features(sim, bundle["geo_enc"], bundle["gender_enc"]))[0, 1]) * 100
+        contributions.append({
+            "feature": feature,
+            "label": label,
+            "current": current,
+            "reference": ref_value,
+            "riskIfChanged": round(p_sim, 1),
+            "delta": round(p_sim - p_base, 1),
+        })
+    contributions.sort(key=lambda c: c["delta"])
+
+    return {
+        "customerId": customer_id,
+        "baselineRisk": round(p_base, 1),
+        "contributions": contributions,
+        "method": "single-feature perturbation to a healthy reference through the trained model (not SHAP)",
+    }
+
+
 def get_model_metrics() -> dict:
     bundle = get_model_bundle()
     return {"metrics": bundle["metrics"], "feature_importances": bundle["feature_importances"]}

@@ -6,6 +6,7 @@ import { Spinner } from '../components/Badge';
 import Card from '../components/Card';
 import PageHeader from '../components/PageHeader';
 import { useEvent } from '../lib/realtime';
+import BlockStrip from '../components/BlockStrip';
 
 function StatusPill({ status }) {
   const map = {
@@ -57,6 +58,10 @@ export default function Blockchain() {
         title="Audit Trail"
         subtitle="Demo Ganache blockchain — hashes an audit-worthy action (retention call, complaint resolution, forecast snapshot) immutably. RPC URL / contract / private key are server-side only."
       />
+
+      <Card title="Live chain" className="mb-6" tour="block-strip">
+        <BlockStrip limit={14} />
+      </Card>
 
       {role === 'admin' ? (
         <Card title="Store new audit record" action={<span className="badge bg-gold/15 text-gold"><Lock size={11} /> Admin only</span>} className="mb-6">
