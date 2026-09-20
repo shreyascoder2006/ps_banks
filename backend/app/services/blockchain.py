@@ -80,6 +80,40 @@ def store_audit_record(record_type: str, description: str, payload_hash_hex: str
     }
 
 
+def record_event(record_type: str, description: str, payload: str) -> Dict[str, Any]:
+    """Fire-and-forget audit write for application events (complaint
+    resolved, outreach triggered). Never raises - a chain hiccup must not
+    fail the business action - but always returns the real outcome so the
+    caller can persist status/tx_hash instead of assuming success."""
+    try:
+        return store_audit_record(record_type, description, sha256_hex(payload))
+    except Exception as exc:
+        return {"status": "error", "detail": str(exc), "record_hash": sha256_hex(payload)}
+
+
+def list_audit_records(limit: int = 20) -> Dict[str, Any]:
+    if not _configured():
+        return {"status": "not_configured", "records": []}
+    try:
+        _, contract = _contract()
+        total = contract.functions.totalRecords().call()
+        start = max(0, total - limit)
+        records = []
+        for i in range(total - 1, start - 1, -1):
+            record_hash, record_type, description, timestamp, stored_by = contract.functions.getRecord(i).call()
+            records.append({
+                "index": i,
+                "record_hash": record_hash.hex(),
+                "record_type": record_type,
+                "description": description,
+                "timestamp": timestamp,
+                "stored_by": stored_by,
+            })
+        return {"status": "ok", "total_records": total, "records": records}
+    except Exception as exc:
+        return {"status": "error", "detail": str(exc), "records": []}
+
+
 def get_latest_audit_record() -> Dict[str, Any]:
     if not _configured():
         return {"status": "not_configured", "detail": "Ganache/AuditTrail contract not configured on the server."}

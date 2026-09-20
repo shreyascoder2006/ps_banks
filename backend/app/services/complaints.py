@@ -1,27 +1,30 @@
-"""Complaint inbox: real CFPB complaint narratives, relabelled for an
-Indian banking demo (same approach the original Aurus frontend used), but
-fetched server-side now instead of directly from the browser, and AI
-analysis/draft-response calls use a server-held Groq key instead of a
-`VITE_*` key shipped to the client bundle.
+"""Complaint inbox backed by SQLite.
+
+Complaint narratives are real CFPB (US) consumer-complaint text (fetched
+server-side at first boot, with a small seed fallback). Each complaint is
+linked to a real CustomerId from the churn dataset - preferentially the
+highest-risk customers, so complaint history and churn risk tell one
+coherent story in the Customer 360 view. Names/account numbers come from
+the linked customer record rather than a random relabel.
+
+AI analysis / draft-response use a server-held Groq key and their result
+is persisted on the complaint row (with a `source` tag so the UI never
+presents a fallback as a model output).
 """
+import json
 import re
 from datetime import datetime
-from functools import lru_cache
 from typing import Optional
 
 import requests
+from sqlmodel import Session, select
 
 from ..config import GROQ_API_KEY
+from ..models import Complaint, ComplaintMessage
+from .blockchain import record_event
+from .churn import score_all_customers
 
 CFPB_BASE = "https://www.consumerfinance.gov/data-research/consumer-complaints/search/api/v1/"
-
-CATEGORY_MAP = {
-    "ATM/Debit Card": "Checking or savings account",
-    "Loan Grievance": "Mortgage",
-    "Fraud/Unauthorized": "Checking or savings account",
-    "Credit Card": "Credit card or prepaid card",
-    "General": "Bank account or service",
-}
 
 SEVERITY_MAP = {
     "Fraud or scam": "critical",
@@ -33,72 +36,121 @@ SEVERITY_MAP = {
 }
 CHANNEL_MAP = {"Web": "portal", "Phone": "ivr", "Referral": "branch", "Email": "email", "Postal mail": "email", "Fax": "email"}
 SLA_HOURS = {"critical": 4, "high": 24, "medium": 72, "low": 168}
+VALID_STATUSES = ("open", "in_progress", "escalated", "resolved")
 
-_INDIAN_NAMES = [
-    "Rajesh Mehta", "Priya Sharma", "Sunil Patil", "Fatima Shaikh",
-    "Vikram Nair", "Anita Desai", "Ravi Kumar", "Sunita Gupta",
-    "Mohammed Ansari", "Deepika Iyer", "Arjun Singh", "Kavitha Reddy",
+_SEED_NARRATIVES = [
+    ("Unrecognized UPI Transaction - Fraud Report", "Fraud", "email", "critical",
+     "I noticed a transaction of Rs 45,000 via UPI that I did not authorize. It happened overnight while I was asleep. I have blocked my card but the money is gone."),
+    ("ATM Swallowed my Card", "ATM Service", "branch", "critical",
+     "The branch ATM malfunctioned and captured my debit card. I need cash urgently and a replacement card."),
+    ("Double EMI Deduction", "Loan", "portal", "high",
+     "My loan EMI was deducted twice this month, once on the 5th and again on the 7th. Please refund the duplicate amount immediately."),
+    ("KYC Aadhaar Rejection Loop", "KYC", "ivr", "high",
+     "Video KYC keeps rejecting with 'Aadhaar mismatch' even though the only difference is a space in my name. My account is at risk of freezing."),
+    ("Net Banking Session Timeout", "Digital Channels", "portal", "medium",
+     "Net banking logs me out every 2 minutes so I cannot complete a fund transfer. Tried Chrome and Edge."),
+    ("FD Premature Closure Query", "Fixed Deposit", "email", "medium",
+     "I want to close my FD prematurely. What are the penalty charges? The website FAQ is unclear."),
+    ("Address Update Request", "Service Request", "email", "low",
+     "I have moved. Please update my communication address; proof attached in the previous mail."),
+    ("Account Statement Request", "Service Request", "portal", "low",
+     "Please send my account statement for the last financial year for tax filing, PDF preferred."),
 ]
 
-_SEED_COMPLAINTS = [
-    {
-        "id": "CMP-0001", "customerName": "Rajesh Mehta", "accountNo": "SB-7823",
-        "subject": "Unrecognized UPI Transaction - Fraud Report",
-        "body": "I noticed a transaction of Rs 45,000 via UPI that I did not authorize. It happened overnight while I was asleep. I have blocked my card but the money is gone.",
-        "channel": "email", "severity": "critical", "category": "Fraud", "status": "open", "slaHours": 4,
-    },
-    {
-        "id": "CMP-0002", "customerName": "Anjali Desai", "accountNo": "SB-8822",
-        "subject": "ATM Swallowed my Card", "body": "The branch ATM malfunctioned and captured my debit card. I need cash urgently and a replacement card.",
-        "channel": "branch", "severity": "critical", "category": "ATM Service", "status": "open", "slaHours": 4,
-    },
-]
+
+def _fetch_cfpb() -> list[dict]:
+    results = []
+    for product, size in [("Checking or savings account", 8), ("Mortgage", 5), ("Credit card or prepaid card", 5)]:
+        params = {"product": product, "has_narrative": "true", "size": str(size), "sort": "created_date_desc"}
+        resp = requests.get(CFPB_BASE, params=params, timeout=8)
+        resp.raise_for_status()
+        results.extend(h["_source"] for h in resp.json().get("hits", {}).get("hits", []))
+    filtered = [c for c in results if len(c.get("consumer_complaint_narrative") or "") > 50][:15]
+    if not filtered:
+        raise ValueError("no narratives returned")
+    out = []
+    for i, c in enumerate(filtered):
+        severity = SEVERITY_MAP.get(c.get("issue", ""), ["critical", "high", "medium", "medium", "low"][i % 5])
+        body = re.sub(r"X{2,}", "[REDACTED]", c.get("consumer_complaint_narrative") or "")[:800]
+        out.append({
+            "subject": c.get("issue") or "Banking Service Complaint",
+            "category": c.get("product", "General"),
+            "channel": CHANNEL_MAP.get(c.get("submitted_via", ""), "portal"),
+            "severity": severity,
+            "body": body,
+        })
+    return out
 
 
-def _transform(cfpb: dict, index: int) -> dict:
-    severity = SEVERITY_MAP.get(cfpb.get("issue", ""), ["critical", "high", "medium", "medium", "low"][index % 5])
-    channel = CHANNEL_MAP.get(cfpb.get("submitted_via", ""), "portal")
-    body = (cfpb.get("consumer_complaint_narrative") or "Complaint text unavailable")
-    body = re.sub(r"X{2,}", "[REDACTED]", body)[:800]
+def seed_complaints_if_empty(session: Session) -> int:
+    if session.exec(select(Complaint).limit(1)).first():
+        return 0
 
-    return {
-        "id": f"CMP-{index + 1:04d}",
-        "customerName": _INDIAN_NAMES[index % len(_INDIAN_NAMES)],
-        "accountNo": f"SB-{1000 + index * 37 % 9000}",
-        "subject": cfpb.get("issue") or "Banking Service Complaint",
-        "body": body,
-        "channel": channel,
-        "severity": severity,
-        "category": cfpb.get("product", "General"),
-        "status": "open",
-        "timestamp": cfpb.get("date_received", datetime.utcnow().isoformat()),
-        "slaHours": SLA_HOURS[severity],
-        "unread": True,
-    }
-
-
-@lru_cache(maxsize=1)
-def load_complaints() -> list[dict]:
     try:
-        results = []
-        for category, size in [("Checking or savings account", 8), ("Mortgage", 5), ("Credit card or prepaid card", 5)]:
-            params = {
-                "product": CATEGORY_MAP.get(category, category),
-                "has_narrative": "true",
-                "size": str(size),
-                "sort": "created_date_desc",
-            }
-            resp = requests.get(CFPB_BASE, params=params, timeout=8)
-            resp.raise_for_status()
-            hits = resp.json().get("hits", {}).get("hits", [])
-            results.extend(h["_source"] for h in hits)
-
-        filtered = [c for c in results if len(c.get("consumer_complaint_narrative") or "") > 50][:15]
-        if not filtered:
-            raise ValueError("no narratives returned")
-        return [_transform(c, i) for i, c in enumerate(filtered)]
+        narratives = _fetch_cfpb()
     except Exception:
-        return _SEED_COMPLAINTS
+        narratives = [
+            {"subject": s, "category": cat, "channel": ch, "severity": sev, "body": body}
+            for s, cat, ch, sev, body in _SEED_NARRATIVES
+        ]
+
+    # Link to the highest-risk real customers so complaint history and churn
+    # risk line up in the Customer 360 view.
+    scored = score_all_customers().sort_values("churn_risk_score", ascending=False)
+    targets = scored.head(len(narratives))
+
+    created = 0
+    for i, (narr, (_, cust)) in enumerate(zip(narratives, targets.iterrows())):
+        complaint = Complaint(
+            id=f"CMP-{i + 1:04d}",
+            customer_id=int(cust["CustomerId"]),
+            customer_name=str(cust["Surname"]),
+            account_no=str(cust["account_no"]),
+            subject=narr["subject"],
+            body=narr["body"],
+            channel=narr["channel"],
+            severity=narr["severity"],
+            category=narr["category"],
+            sla_hours=SLA_HOURS[narr["severity"]],
+        )
+        session.add(complaint)
+        session.add(ComplaintMessage(complaint_id=complaint.id, author="customer", body=narr["body"]))
+        created += 1
+    session.commit()
+    return created
+
+
+def to_dict(c: Complaint) -> dict:
+    return {
+        "id": c.id,
+        "customerId": c.customer_id,
+        "customerName": c.customer_name,
+        "accountNo": c.account_no,
+        "subject": c.subject,
+        "body": c.body,
+        "channel": c.channel,
+        "severity": c.severity,
+        "category": c.category,
+        "status": c.status,
+        "slaHours": c.sla_hours,
+        "timestamp": c.created_at.isoformat(),
+        "resolvedAt": c.resolved_at.isoformat() if c.resolved_at else None,
+        "assignee": c.assignee,
+        "escalationReason": c.escalation_reason,
+        "aiAnalysis": (
+            {
+                "summary": c.ai_summary,
+                "sentimentScore": c.ai_sentiment,
+                "keyIssues": json.loads(c.ai_key_issues) if c.ai_key_issues else [],
+                "regulatoryRisk": c.ai_regulatory_risk,
+                "recommendedAction": c.ai_recommended_action,
+                "source": c.ai_source,
+            }
+            if c.ai_summary
+            else None
+        ),
+        "draftResponse": {"draft": c.draft_response, "source": c.draft_source} if c.draft_response else None,
+    }
 
 
 PROMPT_ANALYZE = """You are an AI banking assistant. Analyze the following complaint and return ONLY a JSON object:
@@ -137,36 +189,93 @@ def _groq_complete(system: str, user: str) -> Optional[str]:
         return None
 
 
-def analyze_complaint(complaint: dict) -> dict:
-    result = _groq_complete("You are a JSON-only banking complaint analyzer.", PROMPT_ANALYZE.format(**complaint))
+def analyze_complaint(session: Session, c: Complaint) -> dict:
+    result = _groq_complete("You are a JSON-only banking complaint analyzer.", PROMPT_ANALYZE.format(subject=c.subject, body=c.body))
+    analysis = None
     if result:
-        import json
         try:
             cleaned = result.strip().strip("`").removeprefix("json").strip()
-            return {**json.loads(cleaned), "source": "groq"}
+            analysis = {**json.loads(cleaned), "source": "groq"}
         except Exception:
-            pass
-    return {
-        "summary": f"{complaint['category']} complaint from {complaint['customerName']}.",
-        "severity": complaint["severity"],
-        "sentimentScore": 0.3 if complaint["severity"] in ("critical", "high") else 0.5,
-        "keyIssues": [complaint["subject"]],
-        "regulatoryRisk": "high" if complaint["severity"] == "critical" else "low",
-        "recommendedAction": "Escalate to relationship manager" if complaint["severity"] in ("critical", "high") else "Standard queue processing",
-        "source": "fallback-no-groq-key",
-    }
+            analysis = None
+    if analysis is None:
+        analysis = {
+            "summary": f"{c.category} complaint from {c.customer_name}.",
+            "severity": c.severity,
+            "sentimentScore": 0.3 if c.severity in ("critical", "high") else 0.5,
+            "keyIssues": [c.subject],
+            "regulatoryRisk": "high" if c.severity == "critical" else "low",
+            "recommendedAction": "Escalate to relationship manager" if c.severity in ("critical", "high") else "Standard queue processing",
+            "source": "fallback-no-groq-key",
+        }
+
+    c.ai_summary = analysis.get("summary")
+    c.ai_sentiment = analysis.get("sentimentScore")
+    c.ai_key_issues = json.dumps(analysis.get("keyIssues", []))
+    c.ai_regulatory_risk = analysis.get("regulatoryRisk")
+    c.ai_recommended_action = analysis.get("recommendedAction")
+    c.ai_source = analysis["source"]
+    if analysis["source"] == "groq" and analysis.get("severity") in SLA_HOURS:
+        c.severity = analysis["severity"]
+        c.sla_hours = SLA_HOURS[c.severity]
+    session.add(c)
+    session.commit()
+    return analysis
 
 
-def draft_response(complaint: dict) -> dict:
-    result = _groq_complete("You are a banking customer service agent.", PROMPT_DRAFT.format(name=complaint["customerName"], body=complaint["body"]))
+def draft_response(session: Session, c: Complaint) -> dict:
+    result = _groq_complete("You are a banking customer service agent.", PROMPT_DRAFT.format(name=c.customer_name, body=c.body))
     if result:
-        return {"draft": result.strip(), "source": "groq"}
-    return {
-        "draft": (
-            f"Dear {complaint['customerName']}, thank you for bringing this to our attention. "
-            f"We have logged your case ({complaint['id']}) and a representative will follow up within "
-            f"{complaint['slaHours']} hours. If this involves an unauthorized transaction, RBI zero-liability "
-            f"guidelines apply and you will not bear the loss if reported promptly. Reach us at 1800-XXX-XXXX for updates."
-        ),
-        "source": "fallback-no-groq-key",
-    }
+        draft = {"draft": result.strip(), "source": "groq"}
+    else:
+        draft = {
+            "draft": (
+                f"Dear {c.customer_name}, thank you for bringing this to our attention. "
+                f"We have logged your case ({c.id}) and a representative will follow up within "
+                f"{c.sla_hours} hours. If this involves an unauthorized transaction, RBI zero-liability "
+                f"guidelines apply and you will not bear the loss if reported promptly. Reach us at 1800-XXX-XXXX for updates."
+            ),
+            "source": "fallback-no-groq-key",
+        }
+    c.draft_response = draft["draft"]
+    c.draft_source = draft["source"]
+    session.add(c)
+    session.commit()
+    return draft
+
+
+def update_status(session: Session, c: Complaint, status: str, actor: str, note: Optional[str] = None) -> dict:
+    if status not in VALID_STATUSES:
+        raise ValueError(f"Invalid status '{status}'")
+    previous = c.status
+    c.status = status
+    if status == "resolved":
+        c.resolved_at = datetime.utcnow()
+    if status == "escalated" and note:
+        c.escalation_reason = note
+    session.add(c)
+    session.add(ComplaintMessage(
+        complaint_id=c.id, author="system",
+        body=f"Status changed {previous} -> {status} by {actor}" + (f": {note}" if note else ""),
+    ))
+    session.commit()
+
+    audit = None
+    if status == "resolved":
+        audit = record_event(
+            "complaint_resolution",
+            f"{c.id} resolved by {actor}",
+            json.dumps({"id": c.id, "customer_id": c.customer_id, "resolved_at": c.resolved_at.isoformat(), "actor": actor, "note": note}),
+        )
+    return {"complaint": to_dict(c), "audit": audit}
+
+
+def add_message(session: Session, c: Complaint, author: str, body: str) -> ComplaintMessage:
+    msg = ComplaintMessage(complaint_id=c.id, author=author, body=body)
+    session.add(msg)
+    if c.status == "open" and author == "agent":
+        c.status = "in_progress"
+        session.add(c)
+    session.commit()
+    session.refresh(msg)
+    return msg

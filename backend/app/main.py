@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import CORS_ORIGINS
+from .db import init_db, session_scope
 from .routers import (
     assistant_routes,
     auth_routes,
@@ -16,6 +17,7 @@ from .routers import (
     trends_routes,
 )
 from .services.churn import get_model_bundle
+from .services.complaints import seed_complaints_if_empty
 
 
 @asynccontextmanager
@@ -23,6 +25,9 @@ async def lifespan(app: FastAPI):
     # Train (or load a cached) churn model once at startup instead of on
     # first request, so the first API call isn't slow.
     get_model_bundle()
+    init_db()
+    with session_scope() as session:
+        seed_complaints_if_empty(session)
     yield
 
 

@@ -1,5 +1,5 @@
 import { Hash, Lock, RefreshCw, ShieldCheck } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { client } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Spinner } from '../components/Badge';
@@ -39,12 +39,14 @@ export default function Blockchain() {
   const fetchLatest = async () => {
     setFetchingLatest(true);
     try {
-      const res = await client.get('/blockchain/audit/latest');
+      const res = await client.get('/blockchain/audit/records', { params: { limit: 20 } });
       setLatest(res.data);
     } finally {
       setFetchingLatest(false);
     }
   };
+
+  useEffect(() => { fetchLatest(); }, []);
 
   return (
     <div>
@@ -94,7 +96,8 @@ export default function Blockchain() {
       )}
 
       <Card
-        title="Latest on-chain record"
+        title={`On-chain records${latest?.total_records != null ? ` (${latest.total_records})` : ''}`}
+        noPad
         action={
           <button onClick={fetchLatest} disabled={fetchingLatest} className="btn-ghost px-3 py-1.5 text-xs flex items-center gap-1.5">
             {fetchingLatest ? <Spinner size={12} /> : <RefreshCw size={12} />}
@@ -103,11 +106,31 @@ export default function Blockchain() {
         }
       >
         {!latest ? (
-          <p className="text-sm text-gray-500">Click refresh to check the chain.</p>
+          <div className="p-5 space-y-2">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="skeleton h-10" />)}</div>
+        ) : latest.status !== 'ok' ? (
+          <div className="p-5 flex items-center gap-2 text-sm text-gray-400">
+            <StatusPill status={latest.status} /> {latest.detail}
+          </div>
+        ) : latest.records.length === 0 ? (
+          <p className="p-5 text-sm text-gray-500">No records on chain yet. Resolve a complaint or trigger an outreach to write one.</p>
         ) : (
-          <div className="fade-in">
-            <StatusPill status={latest.status} />
-            <pre className="text-xs text-gray-400 whitespace-pre-wrap font-mono leading-relaxed mt-3">{JSON.stringify(latest, null, 2)}</pre>
+          <div className="overflow-x-auto">
+            <table className="table-modern">
+              <thead>
+                <tr><th>#</th><th>Type</th><th>Description</th><th>Hash</th><th>When</th></tr>
+              </thead>
+              <tbody>
+                {latest.records.map((r) => (
+                  <tr key={r.index}>
+                    <td className="text-gray-500 tabular-nums">{r.index}</td>
+                    <td><span className="badge bg-white/[0.06] text-gray-300">{r.record_type}</span></td>
+                    <td className="text-white">{r.description}</td>
+                    <td className="font-mono text-xs text-gray-500">{r.record_hash.slice(0, 10)}…{r.record_hash.slice(-6)}</td>
+                    <td className="text-gray-400 text-xs whitespace-nowrap">{new Date(r.timestamp * 1000).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </Card>
