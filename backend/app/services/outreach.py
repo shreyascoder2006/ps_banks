@@ -192,7 +192,7 @@ def record_outcome(session: Session, action_id: int, outcome: str, notes: Option
         session.add(row)
     session.commit()
     session.refresh(row)
-    return {"actionId": action_id, "outcome": row.outcome, "notes": row.notes, "recordedAt": row.created_at.isoformat()}
+    return {"actionId": action_id, "outcome": row.outcome, "notes": row.notes, "recordedAt": row.created_at.isoformat() + "Z"}
 
 
 def action_to_dict(a: OutreachAction, outcome: Optional[OutreachOutcome] = None) -> dict:
@@ -206,7 +206,7 @@ def action_to_dict(a: OutreachAction, outcome: Optional[OutreachOutcome] = None)
         "reason": a.reason.split(" | ") if a.reason else [],
         "riskScoreAtTrigger": a.risk_score_at_trigger,
         "triggeredBy": a.triggered_by,
-        "createdAt": a.created_at.isoformat(),
+        "createdAt": a.created_at.isoformat() + "Z",
         "auditStatus": a.audit_status,
         "auditTxHash": a.audit_tx_hash,
         "outcome": outcome.outcome if outcome else None,

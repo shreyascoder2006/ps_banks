@@ -120,6 +120,12 @@ def seed_complaints_if_empty(session: Session) -> int:
     return created
 
 
+def iso_utc(dt: Optional[datetime]) -> Optional[str]:
+    """DB datetimes are naive UTC; emit an explicit Z so browsers don't
+    parse them as local time."""
+    return dt.isoformat() + "Z" if dt else None
+
+
 def to_dict(c: Complaint) -> dict:
     return {
         "id": c.id,
@@ -133,8 +139,8 @@ def to_dict(c: Complaint) -> dict:
         "category": c.category,
         "status": c.status,
         "slaHours": c.sla_hours,
-        "timestamp": c.created_at.isoformat(),
-        "resolvedAt": c.resolved_at.isoformat() if c.resolved_at else None,
+        "timestamp": iso_utc(c.created_at),
+        "resolvedAt": iso_utc(c.resolved_at),
         "assignee": c.assignee,
         "escalationReason": c.escalation_reason,
         "aiAnalysis": (

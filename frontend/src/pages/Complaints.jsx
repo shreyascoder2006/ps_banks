@@ -1,4 +1,4 @@
-import { Bot, CheckCircle2, Clock, FileEdit, Inbox, Link2, MessageSquare, Send, ShieldCheck, Sparkles, TriangleAlert } from 'lucide-react';
+import { BarChart3, Bot, CheckCircle2, Clock, Copy, FileEdit, Inbox, Link2, MessageSquare, Plus, Send, ShieldCheck, Sparkles, TriangleAlert, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { client } from '../api/client';
@@ -47,6 +47,9 @@ export default function Complaints() {
   const [busy, setBusy] = useState(null);
   const [reply, setReply] = useState('');
   const [audit, setAudit] = useState(null);
+  const [showNew, setShowNew] = useState(false);
+  const [newForm, setNewForm] = useState({ customer_id: '', subject: '', body: '', channel: 'portal' });
+  const [newError, setNewError] = useState('');
 
   const loadList = () =>
     client.get('/complaints', { params: filter ? { status: filter } : {} }).then((res) => setComplaints(res.data.complaints));
@@ -88,13 +91,63 @@ export default function Complaints() {
   const counts = complaints.reduce((acc, c) => ({ ...acc, [c.status]: (acc[c.status] || 0) + 1 }), {});
   const breachedCount = complaints.filter((c) => slaInfo(c).breached).length;
 
+  const submitNew = async (e) => {
+    e.preventDefault();
+    setBusy('new');
+    setNewError('');
+    try {
+      const res = await client.post('/complaints', { ...newForm, customer_id: Number(newForm.customer_id) });
+      setShowNew(false);
+      setNewForm({ customer_id: '', subject: '', body: '', channel: 'portal' });
+      await loadList();
+      select(res.data.complaint);
+    } catch (err) {
+      setNewError(err.response?.data?.detail || 'Failed to log complaint');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <div>
       <PageHeader
         icon={Inbox}
         title="Resolve — Complaint Inbox"
         subtitle="Persistent, customer-linked complaints with SLA tracking, a communication thread, and automatic on-chain audit on resolution."
+        action={
+          <div className="flex gap-2">
+            <Link to="/complaints/insights" className="btn-ghost px-3 py-2 text-sm flex items-center gap-1.5"><BarChart3 size={14} /> Insights</Link>
+            <button onClick={() => setShowNew(true)} className="btn-primary px-3 py-2 text-sm flex items-center gap-1.5"><Plus size={14} /> Log complaint</button>
+          </div>
+        }
       />
+
+      {showNew && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 fade-in" onClick={() => setShowNew(false)}>
+          <form onSubmit={submitNew} className="card p-6 w-[520px] shadow-glow space-y-3" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-white font-bold">Log a new complaint</h2>
+              <button type="button" onClick={() => setShowNew(false)} className="text-gray-500 hover:text-white"><X size={18} /></button>
+            </div>
+            <p className="text-xs text-gray-500">Severity and category are auto-triaged from the text (and refined by AI when a Groq key is configured). Related complaints are detected on save.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <input className="input-field py-2" placeholder="Customer ID e.g. 15634602" value={newForm.customer_id} onChange={(e) => setNewForm({ ...newForm, customer_id: e.target.value })} required />
+              <select className="input-field py-2" value={newForm.channel} onChange={(e) => setNewForm({ ...newForm, channel: e.target.value })}>
+                {['portal', 'email', 'whatsapp', 'branch', 'ivr'].map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <input className="input-field py-2" placeholder="Subject" value={newForm.subject} onChange={(e) => setNewForm({ ...newForm, subject: e.target.value })} required />
+            <textarea className="input-field py-2 min-h-[110px] resize-y" placeholder="Complaint text as received from the customer" value={newForm.body} onChange={(e) => setNewForm({ ...newForm, body: e.target.value })} required />
+            {newError && <div className="px-3 py-2 rounded-lg bg-risk-critical/10 border border-risk-critical/20 text-red-300 text-xs">{newError}</div>}
+            <div className="flex justify-end gap-2 pt-1">
+              <button type="button" onClick={() => setShowNew(false)} className="btn-ghost px-4 py-2 text-sm">Cancel</button>
+              <button type="submit" disabled={busy === 'new'} className="btn-primary px-4 py-2 text-sm flex items-center gap-1.5">
+                {busy === 'new' ? <Spinner size={13} className="text-navy-dark" /> : <Plus size={14} />} Log & triage
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       <div className="flex items-center gap-2 mb-4">
         {['', 'open', 'in_progress', 'escalated', 'resolved'].map((s) => (
@@ -219,6 +272,27 @@ export default function Complaints() {
                   <div className="flex gap-4 mt-2 text-xs text-gray-500">
                     <span>Regulatory risk: <span className="text-gray-300">{detail.aiAnalysis.regulatoryRisk}</span></span>
                     <span>Recommended: <span className="text-gray-300">{detail.aiAnalysis.recommendedAction}</span></span>
+                  </div>
+                </div>
+              )}
+
+              {detail.related?.length > 0 && (
+                <div className="rounded-lg bg-risk-high/[0.05] border border-risk-high/20 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Copy size={14} className="text-risk-high" />
+                    <span className="kicker">Possible duplicates / related</span>
+                    <span className="text-[11px] text-gray-500">TF-IDF similarity on complaint text</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {detail.related.map((r) => (
+                      <button key={r.id} onClick={() => select(r)} className="w-full text-left flex items-center gap-3 text-sm hover:bg-white/[0.04] rounded-md px-2 py-1.5 transition-colors">
+                        <span className="font-mono text-xs text-gray-500">{r.id}</span>
+                        <span className="text-gray-200 flex-1 truncate">{r.subject}</span>
+                        {r.sameCustomer && <span className="badge bg-risk-high/15 text-risk-high">same customer</span>}
+                        <span className="text-gray-500 text-xs capitalize">{r.status.replace('_', ' ')}</span>
+                        <span className="text-gold text-xs tabular-nums">{(r.similarity * 100).toFixed(0)}%</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}

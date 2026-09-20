@@ -12,6 +12,7 @@ import MarketSentiment from './pages/MarketSentiment';
 import Complaints from './pages/Complaints';
 import Assistant from './pages/Assistant';
 import Blockchain from './pages/Blockchain';
+import ComplaintInsights from './pages/ComplaintInsights';
 import Customer360 from './pages/Customer360';
 import Outreach from './pages/Outreach';
 
@@ -36,6 +37,7 @@ export default function App() {
           <Route path="/trends" element={<Protected><ProductTrends /></Protected>} />
           <Route path="/sentiment" element={<Protected><MarketSentiment /></Protected>} />
           <Route path="/complaints" element={<Protected><Complaints /></Protected>} />
+          <Route path="/complaints/insights" element={<Protected><ComplaintInsights /></Protected>} />
           <Route path="/assistant" element={<Protected><Assistant /></Protected>} />
           <Route path="/blockchain" element={<Protected><Blockchain /></Protected>} />
         </Routes>
