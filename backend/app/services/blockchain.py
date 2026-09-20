@@ -55,12 +55,21 @@ def store_audit_record(record_type: str, description: str, payload_hash_hex: str
     tx = contract.functions.addRecord(record_hash_bytes, record_type, description).build_transaction({
         "from": account.address,
         "nonce": web3.eth.get_transaction_count(account.address),
-        "gas": 200_000,
+        "gas": 500_000,
         "gasPrice": web3.to_wei("1", "gwei"),
     })
     signed = account.sign_transaction(tx)
     tx_hash = web3.eth.send_raw_transaction(signed.raw_transaction)
     receipt = web3.eth.wait_for_transaction_receipt(tx_hash)
+
+    if receipt.status != 1:
+        return {
+            "status": "failed",
+            "detail": "Transaction reverted on-chain - see tx_hash for the failed receipt.",
+            "tx_hash": tx_hash.hex(),
+            "block_number": receipt.blockNumber,
+            "record_hash": payload_hash_hex,
+        }
 
     return {
         "status": "stored",

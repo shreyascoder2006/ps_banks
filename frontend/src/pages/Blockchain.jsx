@@ -12,6 +12,7 @@ function StatusPill({ status }) {
     ok: 'bg-risk-low/15 text-risk-low border-risk-low/20',
     not_configured: 'bg-gray-500/15 text-gray-400 border-gray-500/20',
     error: 'bg-risk-critical/15 text-risk-critical border-risk-critical/20',
+    failed: 'bg-risk-critical/15 text-risk-critical border-risk-critical/20',
   };
   return <span className={`badge border ${map[status] || map.not_configured}`}>{status}</span>;
 }

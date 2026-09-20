@@ -52,7 +52,11 @@ silently fabricating data, this file tags every non-obvious signal as
   when `GROQ_API_KEY` isn't set in `backend/.env`.
 - The demo blockchain audit endpoints return `status: "not_configured"`
   rather than pretending to write to chain when Ganache/the contract
-  aren't set up — see `backend/blockchain/deploy.py`.
+  aren't set up — see `backend/blockchain/deploy.py`. When configured
+  (`GANACHE_PRIVATE_KEY`/`AUDIT_CONTRACT_ADDRESS` set), writes are real
+  on-chain transactions against a local Ganache instance; a reverted
+  transaction (e.g. insufficient gas) is reported as `status: "failed"`
+  with the tx hash, never silently reported as `"stored"`.
 
 ## Known simplifications vs. the two original projects
 - No Prophet/ARIMA/XGBoost model selection (see above).
