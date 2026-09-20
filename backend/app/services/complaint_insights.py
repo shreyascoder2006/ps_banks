@@ -93,7 +93,7 @@ def create_complaint(session: Session, customer_id: int, subject: str, body: str
     publish(
         "complaint_logged",
         f"New {d['severity']} complaint via {channel}: {d['customerName']} - {subject}",
-        severity=d["severity"], ref={"complaintId": c.id, "customerId": customer_id},
+        severity=d["severity"], ref={"complaintId": c.id, "customerId": customer_id, "branch": str(row["branch"])},
         data={"complaint": d, "related": related},
     )
     return {"complaint": d, "analysis": analysis, "related": related}

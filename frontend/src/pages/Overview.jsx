@@ -12,6 +12,7 @@ import { RiskBadge } from '../components/Badge';
 import Card from '../components/Card';
 import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
+import BranchMap from '../components/BranchMap';
 import { chartColors } from '../lib/chartTheme';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
@@ -146,6 +147,9 @@ export default function Overview() {
       </div>
 
       <div className="grid grid-cols-3 gap-4 mt-4">
+        <Card title="Branch network · live" className="col-span-2 row-span-3" tour="map">
+          <BranchMap />
+        </Card>
         <Card title="Market sentiment">
           {!sentiment ? (
             <div className="skeleton h-16" />

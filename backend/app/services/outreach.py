@@ -130,6 +130,7 @@ def recommend(session: Session, customer_id: int) -> dict:
     return {
         "customerId": customer_id,
         "surname": row["Surname"],
+        "branch": row["branch"],
         "churnRiskScore": float(row["churn_risk_score"]),
         "churnRiskLevel": row["churn_risk_level"],
         "segment": seg_row["segment"],
@@ -177,7 +178,7 @@ def trigger(session: Session, customer_id: int, triggered_by: str, channel: Opti
         "outreach_triggered",
         f"Outreach #{action.id} via {CHANNEL_LABELS[chosen].lower()} to {rec['surname']} ({rec['churnRiskScore']:.0f}% risk) by {triggered_by}",
         severity=rec["churnRiskLevel"] if rec["churnRiskLevel"] in ("critical", "high") else None,
-        ref={"actionId": action.id, "customerId": customer_id},
+        ref={"actionId": action.id, "customerId": customer_id, "branch": str(rec["branch"])},
         data={"channel": chosen, "audit": audit},
     )
     return {"action": action_to_dict(action), "audit": audit, "recommendation": rec}

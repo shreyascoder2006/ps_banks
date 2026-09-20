@@ -2,7 +2,7 @@ import { BarElement, CategoryScale, Chart as ChartJS, LinearScale, Tooltip } fro
 import { Activity, AlertTriangle, ArrowUpDown, ChevronLeft, ChevronRight, Gauge, Search, ShieldAlert, TrendingDown, Users, X } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Bar } from 'react-chartjs-2';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { client } from '../api/client';
 import { RiskBadge } from '../components/Badge';
 import Card from '../components/Card';
@@ -43,7 +43,8 @@ export default function Pulse() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [q, setQ] = useState('');
-  const [branch, setBranch] = useState('');
+  const [searchParams] = useSearchParams();
+  const [branch, setBranch] = useState(searchParams.get('branch') || '');
   const [branches, setBranches] = useState([]);
   const [sort, setSort] = useState({ key: 'risk', order: 'desc' });
   const [page, setPage] = useState(0);
