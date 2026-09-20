@@ -19,7 +19,7 @@ from typing import Optional
 import requests
 from sqlmodel import Session, select
 
-from ..config import GROQ_API_KEY
+from .llm import complete
 from ..models import Complaint, ComplaintMessage
 from .blockchain import record_event
 from .churn import score_all_customers
@@ -176,33 +176,13 @@ Complaint: {body}
 """
 
 
-def _groq_complete(system: str, user: str) -> Optional[str]:
-    if not GROQ_API_KEY:
-        return None
-    try:
-        resp = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
-            json={
-                "model": "llama-3.3-70b-versatile",
-                "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-                "max_tokens": 512,
-            },
-            timeout=15,
-        )
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"]
-    except Exception:
-        return None
-
-
 def analyze_complaint(session: Session, c: Complaint) -> dict:
-    result = _groq_complete("You are a JSON-only banking complaint analyzer.", PROMPT_ANALYZE.format(subject=c.subject, body=c.body))
+    result, tag = complete("You are a JSON-only banking complaint analyzer. Output raw JSON, no markdown fences.", PROMPT_ANALYZE.format(subject=c.subject, body=c.body), max_tokens=400)
     analysis = None
     if result:
         try:
-            cleaned = result.strip().strip("`").removeprefix("json").strip()
-            analysis = {**json.loads(cleaned), "source": "groq"}
+            start, end = result.find("{"), result.rfind("}")
+            analysis = {**json.loads(result[start:end + 1]), "source": tag}
         except Exception:
             analysis = None
     if analysis is None:
@@ -213,7 +193,7 @@ def analyze_complaint(session: Session, c: Complaint) -> dict:
             "keyIssues": [c.subject],
             "regulatoryRisk": "high" if c.severity == "critical" else "low",
             "recommendedAction": "Escalate to relationship manager" if c.severity in ("critical", "high") else "Standard queue processing",
-            "source": "fallback-no-groq-key",
+            "source": tag if tag.startswith("fallback") else "fallback-parse-error",
         }
 
     c.ai_summary = analysis.get("summary")
@@ -222,7 +202,7 @@ def analyze_complaint(session: Session, c: Complaint) -> dict:
     c.ai_regulatory_risk = analysis.get("regulatoryRisk")
     c.ai_recommended_action = analysis.get("recommendedAction")
     c.ai_source = analysis["source"]
-    if analysis["source"] == "groq" and analysis.get("severity") in SLA_HOURS:
+    if analysis["source"] in ("groq", "gemini") and analysis.get("severity") in SLA_HOURS:
         c.severity = analysis["severity"]
         c.sla_hours = SLA_HOURS[c.severity]
     session.add(c)
@@ -231,9 +211,9 @@ def analyze_complaint(session: Session, c: Complaint) -> dict:
 
 
 def draft_response(session: Session, c: Complaint) -> dict:
-    result = _groq_complete("You are a banking customer service agent.", PROMPT_DRAFT.format(name=c.customer_name, body=c.body))
+    result, tag = complete("You are a banking customer service agent.", PROMPT_DRAFT.format(name=c.customer_name, body=c.body), max_tokens=400)
     if result:
-        draft = {"draft": result.strip(), "source": "groq"}
+        draft = {"draft": result.strip(), "source": tag}
     else:
         draft = {
             "draft": (
@@ -242,7 +222,7 @@ def draft_response(session: Session, c: Complaint) -> dict:
                 f"{c.sla_hours} hours. If this involves an unauthorized transaction, RBI zero-liability "
                 f"guidelines apply and you will not bear the loss if reported promptly. Reach us at 1800-XXX-XXXX for updates."
             ),
-            "source": "fallback-no-groq-key",
+            "source": tag,
         }
     c.draft_response = draft["draft"]
     c.draft_source = draft["source"]

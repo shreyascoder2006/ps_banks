@@ -83,7 +83,7 @@ export default function OutreachPanel({ customerId, onTriggered }) {
       <div>
         <div className="flex items-center gap-2 mb-1.5">
           <span className="text-[11px] uppercase tracking-wide text-gray-500">Message</span>
-          <span className={`badge ${rec.messageSource === 'groq' ? 'bg-risk-low/15 text-risk-low' : 'bg-gray-500/15 text-gray-400'}`}>{rec.messageSource}</span>
+          <span className={`badge ${['groq', 'gemini'].includes(rec.messageSource) ? 'bg-risk-low/15 text-risk-low' : 'bg-gray-500/15 text-gray-400'}`}>{rec.messageSource}</span>
         </div>
         <textarea className="input-field text-xs py-2 min-h-[110px] resize-y leading-relaxed" value={message} onChange={(e) => setMessage(e.target.value)} />
         <div className="text-[11px] text-gray-500 mt-1">Offer: {rec.offerType}</div>

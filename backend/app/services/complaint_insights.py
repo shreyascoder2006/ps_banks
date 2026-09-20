@@ -15,12 +15,11 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 import numpy as np
-import requests
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sqlmodel import Session, select
 
-from ..config import GROQ_API_KEY
+from .llm import complete
 from ..data.loader import load_customers
 from ..models import Complaint, ComplaintMessage
 from .blockchain import record_event
@@ -185,26 +184,16 @@ def trends(session: Session) -> dict:
 
 
 def _root_cause_narrative(by_category: Counter, root_causes: dict, breached: int) -> dict:
-    if not GROQ_API_KEY:
-        top = by_category.most_common(2)
-        text = "Top complaint categories: " + ", ".join(f"{k} ({v})" for k, v in top) + f". {breached} case(s) have breached SLA."
-        return {"text": text, "source": "rule-based"}
-    try:
-        prompt = (
-            "You are a bank's complaints analyst. In 3 sentences, identify the most likely root causes and one concrete fix, "
-            f"given complaint counts by category {dict(by_category)} and the most distinctive terms per category {root_causes}. "
-            f"{breached} complaints have breached SLA. Be specific, no filler."
-        )
-        resp = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
-            json={"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": prompt}], "max_tokens": 250},
-            timeout=15,
-        )
-        resp.raise_for_status()
-        return {"text": resp.json()["choices"][0]["message"]["content"].strip(), "source": "groq"}
-    except Exception:
-        return {"text": "Root-cause narrative unavailable (Groq error).", "source": "fallback-groq-error"}
+    prompt = (
+        "You are a bank's complaints analyst. In 3 sentences, identify the most likely root causes and one concrete fix, "
+        f"given complaint counts by category {dict(by_category)} and the most distinctive terms per category {root_causes}. "
+        f"{breached} complaints have breached SLA. Be specific, no filler."
+    )
+    out, tag = complete("", prompt, max_tokens=250)
+    if out:
+        return {"text": out, "source": tag}
+    top = by_category.most_common(2)
+    return {"text": "Top complaint categories: " + ", ".join(f"{k} ({v})" for k, v in top) + f". {breached} case(s) have breached SLA.", "source": "rule-based"}
 
 
 def regulatory_export(session: Session, actor: str) -> dict:

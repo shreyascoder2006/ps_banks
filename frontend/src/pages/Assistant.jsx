@@ -78,7 +78,7 @@ export default function Assistant() {
                   <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-white/[0.06]">
                     <span className="badge bg-white/[0.06] text-gray-400">{m.meta.intent}</span>
                     <span className="badge bg-white/[0.06] text-gray-400">{Math.round(m.meta.confidence * 100)}% confidence</span>
-                    <span className={`badge ${m.meta.source === 'groq' ? 'bg-risk-low/15 text-risk-low' : 'bg-gray-500/15 text-gray-400'}`}>{m.meta.source}</span>
+                    <span className={`badge ${['groq', 'gemini'].includes(m.meta.source) ? 'bg-risk-low/15 text-risk-low' : 'bg-gray-500/15 text-gray-400'}`}>{m.meta.source}</span>
                   </div>
                 )}
               </div>

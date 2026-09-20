@@ -13,7 +13,8 @@ from typing import Any, Dict, Optional, Tuple
 import requests
 from pypdf import PdfReader
 
-from ..config import DOCS_DIR, GROQ_API_KEY
+from ..config import DOCS_DIR
+from .llm import complete, provider
 
 DOC_FILES = [
     ("rbi_customer_service.pdf", "RBI Master Circular on Customer Service"),
@@ -67,44 +68,26 @@ def detect_intent(query: str) -> Tuple[str, float]:
     return best[0], min(best[1], 1.0)
 
 
-def _groq_chat(messages: list) -> Optional[str]:
-    if not GROQ_API_KEY:
-        return None
-    try:
-        resp = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
-            json={"model": "llama-3.3-70b-versatile", "messages": messages, "max_tokens": 700},
-            timeout=20,
-        )
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"]
-    except Exception:
-        return None
-
-
 def answer_query(query: str, history: Optional[list] = None) -> Dict[str, Any]:
     intent, confidence = detect_intent(query)
     docs = load_policy_text()
 
-    if intent == "policy" or not GROQ_API_KEY:
-        messages = [
-            {"role": "system", "content": POLICY_SYSTEM},
+    if intent == "policy" or provider() is None:
+        hist = [
             {"role": "user", "content": f"RBI Policy Documents:\n\n{docs['text']}\n\n---\nAnswer using these."},
             {"role": "assistant", "content": "Understood, ready to assist with policy-grounded answers."},
             *([{"role": m["role"], "content": m["content"]} for m in history] if history else []),
-            {"role": "user", "content": query},
         ]
-        answer = _groq_chat(messages)
+        answer, tag = complete(POLICY_SYSTEM, query, max_tokens=700, history=hist)
         if answer:
-            return {"answer": answer, "intent": intent, "confidence": confidence, "sources": docs["sources"], "source": "groq"}
+            return {"answer": answer, "intent": intent, "confidence": confidence, "sources": docs["sources"], "source": tag}
         return {
             "answer": (
-                "AI assistant is not configured (no GROQ_API_KEY set on the server), so I can't generate a "
+                "AI assistant is not configured (no LLM key set on the server), so I can't generate a "
                 "grounded answer right now. For unauthorized transactions, RBI's zero-liability circular applies; "
-                "for complaints, the mandated resolution window is 30 days. Set GROQ_API_KEY in backend/.env to enable full answers."
+                "for complaints, the mandated resolution window is 30 days. Set GROQ_API_KEY or GEMINI_API_KEY in backend/.env."
             ),
-            "intent": intent, "confidence": confidence, "sources": docs["sources"], "source": "fallback-no-groq-key",
+            "intent": intent, "confidence": confidence, "sources": docs["sources"], "source": tag,
         }
 
     # Non-policy intents get a structured, grounded (non-hallucinated) answer.

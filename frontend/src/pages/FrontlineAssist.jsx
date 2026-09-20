@@ -9,7 +9,7 @@ import { useToast } from '../components/Toast';
 const Recognition = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
 
 function SourcePill({ source }) {
-  const live = source === 'groq' || source === 'authored' || source === 'same-language';
+  const live = ['groq', 'gemini'].includes(source) || source === 'authored' || source === 'same-language';
   return <span className={`badge ${live ? 'bg-risk-low/15 text-risk-low' : 'bg-gray-500/15 text-gray-400'}`}>{source}</span>;
 }
 
@@ -71,7 +71,7 @@ export default function FrontlineAssist() {
       const turn = { id: Date.now(), speaker, original: text, translated: res.data.translation, from, to, source: res.data.source, at: new Date() };
       setTurns((t) => [...t, turn]);
       speak(res.data.translation, to, tts);
-      if (res.data.source.startsWith('fallback')) toast('Translation needs GROQ_API_KEY - showing original text', 'info');
+      if (res.data.source.startsWith('fallback')) toast('Translation unavailable (no LLM key) - showing original text', 'info');
     } catch (err) {
       toast(err.response?.data?.detail || 'Translation failed', 'error');
     } finally {

@@ -40,7 +40,7 @@ function slaInfo(c, now = Date.now()) {
 
 function SourcePill({ source }) {
   return (
-    <span className={`badge ${source === 'groq' ? 'bg-risk-low/15 text-risk-low' : 'bg-gray-500/15 text-gray-400'}`}>{source}</span>
+    <span className={`badge ${['groq', 'gemini'].includes(source) ? 'bg-risk-low/15 text-risk-low' : 'bg-gray-500/15 text-gray-400'}`}>{source}</span>
   );
 }
 

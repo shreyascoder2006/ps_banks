@@ -130,7 +130,7 @@ export default function ComplaintInsights() {
           <div className="mt-4 pt-3 border-t border-white/[0.05]">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-[11px] uppercase tracking-wide text-gray-500">Root-cause narrative</span>
-              <span className={`badge ${t.narrative.source === 'groq' ? 'bg-risk-low/15 text-risk-low' : 'bg-gray-500/15 text-gray-400'}`}>{t.narrative.source}</span>
+              <span className={`badge ${['groq', 'gemini'].includes(t.narrative.source) ? 'bg-risk-low/15 text-risk-low' : 'bg-gray-500/15 text-gray-400'}`}>{t.narrative.source}</span>
             </div>
             <p className="text-sm text-gray-300 leading-relaxed">{t.narrative.text}</p>
           </div>

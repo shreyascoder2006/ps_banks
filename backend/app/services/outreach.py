@@ -13,10 +13,9 @@ import json
 from collections import defaultdict
 from typing import Optional
 
-import requests
 from sqlmodel import Session, select
 
-from ..config import GROQ_API_KEY
+from .llm import complete
 from ..models import Complaint, OutreachAction, OutreachOutcome
 from .blockchain import record_event
 from .churn import score_all_customers
@@ -92,26 +91,15 @@ def _personalise_message(row, offer: dict, channel: str) -> tuple[str, str]:
         f"Dear {row['Surname']}, thank you for banking with us for {int(row['Tenure'])} year(s). "
         f"{offer['message']} Your {row['branch']} branch team would be glad to help - reply or visit at your convenience."
     )
-    if not GROQ_API_KEY:
-        return fallback, "fallback-no-groq-key"
-    try:
-        prompt = (
-            f"Write a {CHANNEL_LABELS[channel].lower()} message (under 90 words) from an Indian bank to a customer.\n"
-            f"Customer surname: {row['Surname']}. Tenure: {int(row['Tenure'])} years. Branch: {row['branch']}. "
-            f"Segment: {row['segment']}. Products held: {', '.join(row['products'])}.\n"
-            f"Offer to include: {offer['offer_type']} - {offer['message']}\n"
-            "Tone: warm, specific, no exclamation marks, never say 'valued customer'. Return only the message text."
-        )
-        resp = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
-            json={"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": prompt}], "max_tokens": 220},
-            timeout=15,
-        )
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"].strip(), "groq"
-    except Exception:
-        return fallback, "fallback-groq-error"
+    prompt = (
+        f"Write a {CHANNEL_LABELS[channel].lower()} message (under 90 words) from an Indian bank to a customer.\n"
+        f"Customer surname: {row['Surname']}. Tenure: {int(row['Tenure'])} years. Branch: {row['branch']}. "
+        f"Segment: {row['segment']}. Products held: {', '.join(row['products'])}.\n"
+        f"Offer to include: {offer['offer_type']} - {offer['message']}\n"
+        "Tone: warm, specific, no exclamation marks, never say 'valued customer'. Return only the message text."
+    )
+    out, tag = complete("", prompt, max_tokens=220, temperature=0.5)
+    return (out, tag) if out else (fallback, tag)
 
 
 def recommend(session: Session, customer_id: int) -> dict:

@@ -10,12 +10,12 @@ Every response carries a `source` tag; without a Groq key the endpoints
 return honest fallbacks (untranslated text clearly labelled) rather than
 pretending to translate.
 """
+import json
+import re
 from functools import lru_cache
 from typing import Optional
 
-import requests
-
-from ..config import GROQ_API_KEY
+from .llm import complete
 
 LANGUAGES = {
     "en-IN": "English", "hi-IN": "Hindi", "mr-IN": "Marathi", "ta-IN": "Tamil", "te-IN": "Telugu",
@@ -105,24 +105,12 @@ PROCESS_GUIDES = {
 }
 
 
-def _groq(messages: list, max_tokens: int = 500) -> Optional[str]:
-    if not GROQ_API_KEY:
-        return None
-    try:
-        resp = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
-            json={"model": "llama-3.3-70b-versatile", "messages": messages, "max_tokens": max_tokens, "temperature": 0.2},
-            timeout=20,
-        )
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"].strip()
-    except Exception:
-        return None
-
-
-def _glossary_text() -> str:
-    return "\n".join(f"- {en} -> {hi}" for en, hi in GLOSSARY.items())
+def _glossary_text(lang: str) -> str:
+    """Hindi gets the explicit glossary; other languages get a generic
+    instruction so Hindi terms never leak into Tamil/Marathi output."""
+    if not lang.startswith("hi"):
+        return "Keep English product names and acronyms (KYC, PAN, UPI, EMI, RBI, FD) as commonly used in Indian banking."
+    return "Prefer these Hindi banking terms:\n" + "\n".join(f"- {en} -> {hi}" for en, hi in GLOSSARY.items())
 
 
 def translate(text: str, source_lang: str, target_lang: str, speaker: str = "customer") -> dict:
@@ -133,17 +121,17 @@ def translate(text: str, source_lang: str, target_lang: str, speaker: str = "cus
     system = (
         f"You are a banking interpreter at an Indian bank branch. Translate the {speaker}'s words from {src} to {tgt}. "
         "Rules: translate faithfully and naturally; keep product names, account numbers, amounts and reference IDs unchanged; "
-        "use standard banking terminology in the target language; if the target is Hindi, prefer these glossary terms:\n"
-        f"{_glossary_text()}\n"
+        "use standard banking terminology in the target language. "
+        f"{_glossary_text(target_lang)}\n"
         "Return ONLY the translated text, nothing else."
     )
-    out = _groq([{"role": "system", "content": system}, {"role": "user", "content": text}], max_tokens=400)
+    out, tag = complete(system, text, max_tokens=600)
     if out:
-        return {"translation": out, "source": "groq", "sourceLang": source_lang, "targetLang": target_lang}
+        return {"translation": out, "source": tag, "sourceLang": source_lang, "targetLang": target_lang}
     return {
         "translation": text,
-        "source": "fallback-no-groq-key",
-        "note": "Translation unavailable without GROQ_API_KEY - showing original text.",
+        "source": tag,
+        "note": "Translation unavailable - set GROQ_API_KEY or GEMINI_API_KEY. Showing original text.",
         "sourceLang": source_lang, "targetLang": target_lang,
     }
 
@@ -155,38 +143,47 @@ def guide(guide_id: str, lang: str) -> dict:
         return {"id": guide_id, "title": g["title"], "steps": g["steps"], "lang": lang, "source": "authored"}
     system = (
         f"Translate this bank branch process guide into {LANGUAGES.get(lang, lang)} for a customer to read. "
-        "Keep numbering, keep product names and acronyms (KYC, PAN, UPI, EMI) as-is, use the glossary for Hindi:\n"
-        f"{_glossary_text()}\nReturn the title on the first line, then one step per line, no extra commentary."
+        f"{_glossary_text(lang)}\n"
+        'Respond with JSON only, exactly this shape: {"title": "<translated title>", "steps": ["<step 1>", "<step 2>", ...]} '
+        "with the same number of steps as the input and no numbering inside the strings."
     )
-    text = "\n".join([g["title"], *[f"{i + 1}. {s}" for i, s in enumerate(g["steps"])]])
-    out = _groq([{"role": "system", "content": system}, {"role": "user", "content": text}], max_tokens=700)
+    payload = json.dumps({"title": g["title"], "steps": g["steps"]}, ensure_ascii=False)
+    out, tag = complete(system, payload, max_tokens=900, json_mode=True)
     if out:
-        lines = [l.strip() for l in out.splitlines() if l.strip()]
-        title, steps = (lines[0], lines[1:]) if lines else (g["title"], g["steps"])
-        steps = [s.split(". ", 1)[1] if s[:2].rstrip(".").isdigit() and ". " in s else s for s in steps]
-        return {"id": guide_id, "title": title, "steps": steps, "lang": lang, "source": "groq"}
-    return {"id": guide_id, "title": g["title"], "steps": g["steps"], "lang": lang, "source": "fallback-no-groq-key"}
+        try:
+            start, end = out.find("{"), out.rfind("}")
+            parsed = json.loads(out[start:end + 1])
+            steps = [re.sub(r"^\s*\d+[.)]\s*", "", str(st)).strip() for st in parsed.get("steps", [])]
+            if steps:
+                return {"id": guide_id, "title": str(parsed.get("title") or g["title"]), "steps": steps, "lang": lang, "source": tag}
+        except Exception:
+            pass
+        tag = "fallback-parse-error"
+    return {"id": guide_id, "title": g["title"], "steps": g["steps"], "lang": lang, "source": tag}
 
 
 def summarize(turns: list[dict], customer_lang: str, staff_lang: str = "en-IN") -> dict:
     transcript = "\n".join(f"[{t.get('speaker', '?')}] {t.get('original', '')}" for t in turns)
+    staff_name, cust_name = LANGUAGES.get(staff_lang, staff_lang), LANGUAGES.get(customer_lang, customer_lang)
     system = (
-        "You are documenting a bank branch interaction for the record. Produce a concise bilingual summary: "
-        f"first in {LANGUAGES.get(staff_lang, staff_lang)}, then the same summary in {LANGUAGES.get(customer_lang, customer_lang)}. "
-        "Include: the customer's request, what was explained or done, any commitments (with timelines), and next steps. "
-        "Use the format:\n=== STAFF ===\n<summary>\n=== CUSTOMER ===\n<summary>"
+        "You are documenting a bank branch interaction for the record. Write a concise summary (3-5 sentences) covering: "
+        "the customer's request, what was explained or done, any commitments with timelines, and next steps. "
+        f'Respond with JSON only: {{"staff": "<summary written in {staff_name}>", "customer": "<the same summary written in {cust_name}, in {cust_name} script, addressed to the customer>"}}. '
+        f"The \"customer\" value MUST be in {cust_name}, not {staff_name}. No markdown."
     )
-    out = _groq([{"role": "system", "content": system}, {"role": "user", "content": transcript}], max_tokens=600)
-    if out and "=== CUSTOMER ===" in out:
-        staff_part, cust_part = out.split("=== CUSTOMER ===", 1)
-        return {
-            "staffSummary": staff_part.replace("=== STAFF ===", "").strip(),
-            "customerSummary": cust_part.strip(),
-            "source": "groq",
-        }
+    out, tag = complete(system, transcript, max_tokens=900, json_mode=True)
+    if out:
+        try:
+            start, end = out.find("{"), out.rfind("}")
+            parsed = json.loads(out[start:end + 1])
+            if parsed.get("staff") and parsed.get("customer"):
+                return {"staffSummary": str(parsed["staff"]).strip(), "customerSummary": str(parsed["customer"]).strip(), "source": tag}
+        except Exception:
+            pass
+        tag = "fallback-parse-error"
     bullets = "\n".join(f"- {t.get('speaker', '?')}: {t.get('original', '')}" for t in turns)
     return {
         "staffSummary": f"Interaction transcript ({len(turns)} turns):\n{bullets}",
-        "customerSummary": "(Bilingual summary requires GROQ_API_KEY.)",
-        "source": "fallback-no-groq-key",
+        "customerSummary": "(Bilingual summary needs an LLM key.)",
+        "source": tag,
     }
