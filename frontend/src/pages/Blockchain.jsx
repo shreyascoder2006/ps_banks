@@ -100,6 +100,7 @@ export default function Blockchain() {
       <Card
         title={`On-chain records${latest?.total_records != null ? ` (${latest.total_records})` : ''}`}
         noPad
+        tour="chain-records"
         action={
           <button onClick={fetchLatest} disabled={fetchingLatest} className="btn-ghost px-3 py-1.5 text-xs flex items-center gap-1.5">
             {fetchingLatest ? <Spinner size={12} /> : <RefreshCw size={12} />}

@@ -94,7 +94,7 @@ export default function Outreach() {
         </div>
       )}
 
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-4 gap-4 mb-6" data-tour="outreach-kpis">
         <StatCard label="Outreach sent" value={eff ? eff.total.sent : '—'} icon={Send} tone="gold" />
         <StatCard label="Retained" value={eff ? eff.total.retained : '—'} icon={CheckCircle2} tone="green" />
         <StatCard label="Churned" value={eff ? eff.total.churned : '—'} icon={XCircle} tone="red" />
@@ -133,7 +133,7 @@ export default function Outreach() {
         </Card>
       </div>
 
-      <Card title={`Outreach log (${actions?.length ?? 0})`} noPad>
+      <Card title={`Outreach log (${actions?.length ?? 0})`} noPad tour="outreach-log">
         {!actions ? (
           <div className="p-5 space-y-2">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="skeleton h-10" />)}</div>
         ) : actions.length === 0 ? (

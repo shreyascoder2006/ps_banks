@@ -51,7 +51,7 @@ export default function Customer360() {
         icon={User}
         title={`${data.surname} · ${data.accountNo}`}
         subtitle={`${data.branch} · ${data.segment.replace('_', ' ')} · ${data.geography} · joined ${new Date().getFullYear() - data.tenure}`}
-        action={<RiskBadge level={data.churnRiskLevel}>{data.churnRiskScore.toFixed(1)}% {data.churnRiskLevel}</RiskBadge>}
+        action={<span data-tour="risk-badge"><RiskBadge level={data.churnRiskLevel}>{data.churnRiskScore.toFixed(1)}% {data.churnRiskLevel}</RiskBadge></span>}
       />
 
       <div className="grid grid-cols-4 gap-4 mb-6">
@@ -74,7 +74,7 @@ export default function Customer360() {
             </div>
           </Card>
 
-          <Card title="Why this risk score">
+          <Card title="Why this risk score" tour="why-risk">
             <ul className="space-y-1.5">
               {data.churnDrivers.map((d, i) => (
                 <li key={i} className="text-sm text-gray-300 flex gap-2 items-start">
@@ -109,7 +109,7 @@ export default function Customer360() {
             )}
           </Card>
 
-          <Card title={`Outreach history (${data.outreach.length})`} noPad>
+          <Card title={`Outreach history (${data.outreach.length})`} noPad tour="outreach-history">
             {data.outreach.length === 0 ? (
               <p className="p-5 text-sm text-gray-500">No outreach yet.</p>
             ) : (
@@ -133,14 +133,14 @@ export default function Customer360() {
         </div>
 
         <div className="space-y-4">
-          <Card title="What-if intervention simulator">
+          <Card title="What-if intervention simulator" tour="simulator">
             <WhatIfSimulator customerId={data.customerId} baseline={data} />
           </Card>
           <Card title="Current offer">
             <div className="text-sm text-gold font-medium mb-1">{data.offer.offer_type}</div>
             <p className="text-sm text-gray-400 leading-relaxed">{data.offer.message}</p>
           </Card>
-          <Card title="Predictive outreach" action={<Megaphone size={14} className="text-gold" />}>
+          <Card title="Predictive outreach" action={<Megaphone size={14} className="text-gold" />} tour="outreach-panel">
             <OutreachPanel
               customerId={data.customerId}
               onTriggered={(r) => { load(); toast(`Outreach #${r.action.id} triggered via ${r.action.channelLabel} · audit ${r.audit?.status}`, 'success'); }}

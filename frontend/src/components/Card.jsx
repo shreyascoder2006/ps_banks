@@ -1,8 +1,8 @@
 import React from 'react';
 
-export default function Card({ title, action, children, className = '', noPad = false }) {
+export default function Card({ title, action, children, className = '', noPad = false, tour }) {
   return (
-    <div className={`card ${className}`}>
+    <div className={`card ${className}`} data-tour={tour}>
       {(title || action) && (
         <div className="flex items-center justify-between px-5 pt-4 pb-1">
           {title && <h3 className="kicker">{title}</h3>}

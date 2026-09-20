@@ -60,7 +60,7 @@ export default function Overview() {
         }
       />
 
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-4 gap-4 mb-6" data-tour="kpis">
         <StatCard label="Customers tracked" value={stats ? stats.total.toLocaleString() : '—'} icon={Users} tone="gold" />
         <StatCard
           label="Critical risk"
@@ -79,7 +79,7 @@ export default function Overview() {
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        <Card title="Critical watchlist" noPad className="col-span-2">
+        <Card title="Critical watchlist" noPad className="col-span-2" tour="watchlist">
           {!criticalCustomers ? (
             <div className="p-5 space-y-2">
               {Array.from({ length: 5 }).map((_, i) => <div key={i} className="skeleton h-10" />)}
@@ -204,7 +204,7 @@ export default function Overview() {
         </Card>
       </div>
 
-      <Card title="Live activity" className="mt-4" noPad action={<span className="text-[11px] text-gray-500 flex items-center gap-1"><Activity size={11} /> auto-refreshes every 30s</span>}>
+      <Card title="Live activity" className="mt-4" noPad tour="activity" action={<span className="text-[11px] text-gray-500 flex items-center gap-1"><Activity size={11} /> auto-refreshes every 30s</span>}>
         {!activity ? (
           <div className="p-5 space-y-2">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton h-8" />)}</div>
         ) : activity.length === 0 ? (

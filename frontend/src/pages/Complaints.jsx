@@ -344,7 +344,7 @@ export default function Complaints() {
         </div>
       ) : (
       <div className="grid grid-cols-[340px_minmax(0,1fr)] gap-4 items-start">
-        <Card title={`Inbox (${visible.length})`} noPad className="max-h-[72vh] overflow-y-auto">
+        <Card title={`Inbox (${visible.length})`} noPad className="max-h-[72vh] overflow-y-auto" tour="inbox">
           <div className="px-2 pb-2">
             {visible.length === 0 && <p className="text-xs text-gray-500 text-center py-8">No complaints match.</p>}
             {visible.map((c) => {
@@ -379,7 +379,7 @@ export default function Complaints() {
           </div>
         </Card>
 
-        <Card title="Case detail">
+        <Card title="Case detail" tour="case-detail">
           {renderDetail()}
         </Card>
       </div>

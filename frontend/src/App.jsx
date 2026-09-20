@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './auth/AuthContext';
 import Layout from './components/Layout';
 import { ToastProvider } from './components/Toast';
 import { RealtimeProvider } from './lib/realtime';
+import StoryMode from './components/StoryMode';
 import Login from './pages/Login';
 import Overview from './pages/Overview';
 import Pulse from './pages/Pulse';
@@ -30,6 +31,7 @@ export default function App() {
       <ToastProvider>
       <RealtimeProvider>
       <BrowserRouter>
+        <StoryMode />
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<Protected><Overview /></Protected>} />
