@@ -1,5 +1,5 @@
 import {
-  Activity, LayoutDashboard, Landmark, LineChart, LogOut, Megaphone, MessagesSquare,
+  Activity, LayoutDashboard, Landmark, Languages, LineChart, LogOut, Megaphone, MessagesSquare,
   ShieldCheck, Sparkles, TrendingUp, Users,
 } from 'lucide-react';
 import React from 'react';
@@ -16,7 +16,8 @@ const NAV_ITEMS = [
   { to: '/trends', label: 'Product Trends', icon: LineChart },
   { to: '/sentiment', label: 'Market Sentiment', icon: Sparkles },
   { to: '/complaints', label: 'Resolve', icon: MessagesSquare },
-  { to: '/assistant', label: 'Assistant', icon: Sparkles },
+  { to: '/assistant', label: 'Policy Assistant', icon: Sparkles },
+  { to: '/frontline', label: 'Frontline Assist', icon: Languages },
   { to: '/blockchain', label: 'Audit Trail', icon: ShieldCheck },
 ];
 

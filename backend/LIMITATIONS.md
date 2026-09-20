@@ -69,9 +69,21 @@ silently fabricating data, this file tags every non-obvious signal as
   transaction (e.g. insufficient gas) is reported as `status: "failed"`
   with the tx hash, never silently reported as `"stored"`.
 
+- Live demo mode (`POST /simulation/start`) writes real rows through the
+  same services as manual actions, but every row it creates is labelled
+  (`CustomerSignal.source="simulator"`, outcome notes say "simulated").
+  It is off by default and must be started explicitly.
+- Frontline Assist (PS6): speech-to-text and text-to-speech use the
+  browser's Web Speech API - quality and language coverage depend on the
+  OS/browser voices installed, and recognition may be unavailable in some
+  embedded browsers (typed input is always available). Translation,
+  translated process guides and the bilingual summary need `GROQ_API_KEY`;
+  without it they return the original text tagged `fallback-no-groq-key`.
+- Explainability bars are single-feature perturbation through the trained
+  model, explicitly not SHAP values.
+
 ## Known simplifications vs. the two original projects
 - No Prophet/ARIMA/XGBoost model selection (see above).
-- No voice/speech features from the original Aurus Assist module.
 - No heatmap or "competitive index" stock-ticker sector breakdown beyond
   the sentiment index above.
 - Demo auth uses two in-memory accounts (`agent`/`admin`), not a real user

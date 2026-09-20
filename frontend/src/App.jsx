@@ -17,6 +17,7 @@ import Assistant from './pages/Assistant';
 import Blockchain from './pages/Blockchain';
 import ComplaintInsights from './pages/ComplaintInsights';
 import Customer360 from './pages/Customer360';
+import FrontlineAssist from './pages/FrontlineAssist';
 import Outreach from './pages/Outreach';
 
 function Protected({ children }) {
@@ -45,6 +46,7 @@ export default function App() {
           <Route path="/complaints" element={<Protected><Complaints /></Protected>} />
           <Route path="/complaints/insights" element={<Protected><ComplaintInsights /></Protected>} />
           <Route path="/assistant" element={<Protected><Assistant /></Protected>} />
+          <Route path="/frontline" element={<Protected><FrontlineAssist /></Protected>} />
           <Route path="/blockchain" element={<Protected><Blockchain /></Protected>} />
         </Routes>
       </BrowserRouter>
