@@ -19,7 +19,7 @@ from sqlmodel import select
 
 from ..db import session_scope
 from ..models import Complaint, ComplaintMessage, CustomerSignal, OutreachAction, OutreachOutcome
-from .churn import score_all_customers
+from .churn import invalidate_scoring_cache, score_all_customers
 from .complaint_insights import create_complaint
 from .events import publish
 from .outreach import record_outcome
@@ -88,6 +88,7 @@ def _tick_activity_drop():
         sig.updated_at = datetime.utcnow()
         session.add(sig)
         session.commit()
+    invalidate_scoring_cache()
     new = float(score_all_customers().set_index("CustomerId").loc[cid, "churn_risk_score"])
     publish(
         "risk_changed",
@@ -113,6 +114,7 @@ def _tick_balance_move():
         sig.updated_at = datetime.utcnow()
         session.add(sig)
         session.commit()
+    invalidate_scoring_cache()
     new = float(score_all_customers().set_index("CustomerId").loc[cid, "churn_risk_score"])
     direction = "outflow" if factor < 1 else "inflow"
     publish(

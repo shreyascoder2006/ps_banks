@@ -20,9 +20,11 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sqlmodel import Session, select
 
 from .llm import complete
+from ..lib.ttl_cache import ttl_cache
 from ..data.loader import load_customers
 from ..models import Complaint, ComplaintMessage
 from .blockchain import record_event
+from .churn import invalidate_scoring_cache
 from .complaints import SLA_HOURS, analyze_complaint, to_dict
 from .events import publish
 
@@ -85,6 +87,7 @@ def create_complaint(session: Session, customer_id: int, subject: str, body: str
     session.add(ComplaintMessage(complaint_id=c.id, author="customer", body=body))
     session.commit()
     session.refresh(c)
+    invalidate_scoring_cache()  # complaint_count feature changed for this customer
 
     analysis = analyze_complaint(session, c) if auto_analyze else None
     related = related_complaints(session, c.id)
@@ -183,7 +186,10 @@ def trends(session: Session) -> dict:
     }
 
 
-def _root_cause_narrative(by_category: Counter, root_causes: dict, breached: int) -> dict:
+@ttl_cache(seconds=30)
+def _root_cause_narrative_cached(category_key: tuple, root_causes_key: tuple, breached: int) -> dict:
+    by_category = Counter(dict(category_key))
+    root_causes = dict(root_causes_key)
     prompt = (
         "You are a bank's complaints analyst. In 3 sentences, identify the most likely root causes and one concrete fix, "
         f"given complaint counts by category {dict(by_category)} and the most distinctive terms per category {root_causes}. "
@@ -194,6 +200,16 @@ def _root_cause_narrative(by_category: Counter, root_causes: dict, breached: int
         return {"text": out, "source": tag}
     top = by_category.most_common(2)
     return {"text": "Top complaint categories: " + ", ".join(f"{k} ({v})" for k, v in top) + f". {breached} case(s) have breached SLA.", "source": "rule-based"}
+
+
+def _root_cause_narrative(by_category: Counter, root_causes: dict, breached: int) -> dict:
+    # This is the slowest thing on the page (a live LLM call, 3-10s) and the
+    # inputs rarely change between page loads, so cache on a hashable key
+    # derived from the counts/terms for 30s rather than calling the LLM on
+    # every single GET /complaints/trends.
+    category_key = tuple(sorted(by_category.items()))
+    root_causes_key = tuple(sorted((k, tuple(v)) for k, v in root_causes.items()))
+    return _root_cause_narrative_cached(category_key, root_causes_key, breached)
 
 
 def regulatory_export(session: Session, actor: str) -> dict:

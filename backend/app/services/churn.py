@@ -20,6 +20,7 @@ from sklearn.preprocessing import LabelEncoder
 
 from ..config import MODEL_DIR
 from ..data.loader import load_customers
+from ..lib.ttl_cache import ttl_cache
 
 FEATURES = [
     "CreditScore", "Age", "Tenure", "Balance", "Num Of Products",
@@ -173,6 +174,7 @@ def retrain_with_feedback() -> dict:
     get_model_bundle.cache_clear()
     bundle = _train()
     get_model_bundle()  # re-prime the cache from the freshly saved artifact
+    invalidate_scoring_cache()
     try:
         from .events import publish
         publish("model_retrained", f"Churn model retrained with {bundle['metrics']['feedback_rows_used']} outcome-labelled customer(s) - AUC {bundle['metrics']['auc']:.3f}",
@@ -208,7 +210,26 @@ def _risk_level(score: float) -> str:
     return "low"
 
 
+@ttl_cache(seconds=8)
+def _score_all_customers_cached() -> pd.DataFrame:
+    return _score_all_customers_uncached()
+
+
 def score_all_customers() -> pd.DataFrame:
+    """Cached for 8s - re-scoring all 10,000 rows plus 4 DB round trips on
+    every request was the single biggest source of page latency (5-6s on
+    /customers, /customers/stats, /segments, /outreach/*, 360). Any write
+    that changes a customer's inputs calls invalidate_scoring_cache()
+    immediately after, so the cache never outlives its data by more than
+    the time it takes the next request to arrive."""
+    return _score_all_customers_cached().copy()
+
+
+def invalidate_scoring_cache() -> None:
+    _score_all_customers_cached.cache_clear()
+
+
+def _score_all_customers_uncached() -> pd.DataFrame:
     bundle = get_model_bundle()
     df = _augment(load_customers())
     X = _prep_features(df, bundle["geo_enc"], bundle["gender_enc"])

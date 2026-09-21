@@ -9,6 +9,8 @@ fabrication" rule: never present a fallback number as if it were live data).
 """
 from typing import Dict, List
 
+from ..lib.ttl_cache import ttl_cache
+
 try:
     from pytrends.request import TrendReq
     PYTRENDS_AVAILABLE = True
@@ -89,7 +91,11 @@ def _sentiment_score(headlines: List[str] = None) -> Dict:
     return {"score": score, "source": source, "detail": f"VADER on {len(headlines)} headlines ({'canned' if source == 'fallback' else 'supplied'})"}
 
 
+@ttl_cache(seconds=120)
 def get_market_sentiment_index() -> dict:
+    # pytrends + yfinance are live external calls (~5-6s); this data moves
+    # on the order of minutes, not per-request, so a 2-minute cache removes
+    # essentially all of that latency without making anything less "live".
     trends = _trends_score()
     market = _market_score()
     sentiment = _sentiment_score()

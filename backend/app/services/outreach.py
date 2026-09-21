@@ -18,7 +18,7 @@ from sqlmodel import Session, select
 from .llm import complete
 from ..models import Complaint, OutreachAction, OutreachOutcome
 from .blockchain import record_event
-from .churn import score_all_customers
+from .churn import invalidate_scoring_cache, score_all_customers
 from .events import publish
 from .segmentation import compute_personalised_offer, compute_segments
 
@@ -161,6 +161,7 @@ def trigger(session: Session, customer_id: int, triggered_by: str, channel: Opti
     session.add(action)
     session.commit()
     session.refresh(action)
+    invalidate_scoring_cache()  # outreach_count feature changed for this customer
 
     publish(
         "outreach_triggered",
