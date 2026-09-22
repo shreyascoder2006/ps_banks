@@ -192,7 +192,7 @@ export default function StoryMode() {
     return () => { window.removeEventListener('resize', rem); window.removeEventListener('scroll', rem, true); };
   }, [idx, steps]);
 
-  if (!isAuthenticated) return null;
+  if (!isAuthenticated || window.location.pathname === '/landing') return null;
 
   if (idx < 0) {
     return (

@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
+from pydantic import NaiveDatetime
 from sqlmodel import Field, SQLModel
 
 
@@ -16,8 +17,8 @@ class Complaint(SQLModel, table=True):
     category: str
     status: str = Field(default="open", index=True)
     sla_hours: int
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    resolved_at: Optional[datetime] = None
+    created_at: NaiveDatetime = Field(default_factory=datetime.utcnow)
+    resolved_at: Optional[NaiveDatetime] = None
     assignee: Optional[str] = None
     escalation_reason: Optional[str] = None
 
@@ -37,7 +38,7 @@ class ComplaintMessage(SQLModel, table=True):
     complaint_id: str = Field(index=True)
     author: str  # customer | agent | system
     body: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: NaiveDatetime = Field(default_factory=datetime.utcnow)
 
 
 class OutreachAction(SQLModel, table=True):
@@ -49,7 +50,7 @@ class OutreachAction(SQLModel, table=True):
     reason: str
     risk_score_at_trigger: float
     triggered_by: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: NaiveDatetime = Field(default_factory=datetime.utcnow)
     audit_tx_hash: Optional[str] = None
     audit_status: Optional[str] = None
 
@@ -64,7 +65,7 @@ class CustomerSignal(SQLModel, table=True):
     balance: Optional[float] = None
     source: str = "simulator"
     note: Optional[str] = None
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: NaiveDatetime = Field(default_factory=datetime.utcnow)
 
 
 class OutreachOutcome(SQLModel, table=True):
@@ -72,4 +73,4 @@ class OutreachOutcome(SQLModel, table=True):
     action_id: int = Field(index=True)
     outcome: str  # retained | churned | no_response
     notes: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: NaiveDatetime = Field(default_factory=datetime.utcnow)

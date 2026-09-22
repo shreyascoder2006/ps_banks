@@ -19,6 +19,7 @@ import ComplaintInsights from './pages/ComplaintInsights';
 import Customer360 from './pages/Customer360';
 import FrontlineAssist from './pages/FrontlineAssist';
 import Outreach from './pages/Outreach';
+import Landing from './pages/Landing';
 
 function Protected({ children }) {
   const { isAuthenticated } = useAuth();
@@ -36,6 +37,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<Protected><Overview /></Protected>} />
+          <Route path="/landing" element={<Landing />} />
           <Route path="/pulse" element={<Protected><Pulse /></Protected>} />
           <Route path="/customers/:id" element={<Protected><Customer360 /></Protected>} />
           <Route path="/outreach" element={<Protected><Outreach /></Protected>} />
