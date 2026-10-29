@@ -4,7 +4,6 @@ import React, { useEffect, useState } from 'react';
 import { Bar } from 'react-chartjs-2';
 import { Link } from 'react-router-dom';
 import { client } from '../api/client';
-import { useAuth } from '../auth/AuthContext';
 import { Spinner } from '../components/Badge';
 import Card from '../components/Card';
 import PageHeader from '../components/PageHeader';
@@ -22,7 +21,6 @@ const OUTCOME_STYLES = {
 };
 
 export default function Outreach() {
-  const { role } = useAuth();
   const toast = useToast();
   const [actions, setActions] = useState(null);
   const [eff, setEff] = useState(null);
@@ -77,12 +75,10 @@ export default function Outreach() {
         title="Predictive Outreach"
         subtitle="Every action is channel-routed from real signals, hashed on-chain, and its outcome feeds back into the churn model."
         action={
-          role === 'admin' && (
-            <button onClick={doRetrain} disabled={!!busy} className="btn-primary px-4 py-2 text-sm flex items-center gap-1.5">
-              {busy === 'retrain' ? <Spinner size={13} className="text-navy-dark" /> : <BrainCircuit size={14} />}
-              Retrain with feedback
-            </button>
-          )
+          <button onClick={doRetrain} disabled={!!busy} className="btn-primary px-4 py-2 text-sm flex items-center gap-1.5">
+            {busy === 'retrain' ? <Spinner size={13} className="text-navy-dark" /> : <BrainCircuit size={14} />}
+            Retrain with feedback
+          </button>
         }
       />
 

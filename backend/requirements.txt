@@ -1,12 +1,10 @@
 fastapi
 uvicorn[standard]
-sqlmodel
+sqlmodel==0.0.14
 pandas
 numpy
 scikit-learn
 joblib
-pyjwt
-passlib
 python-multipart
 pypdf
 requests

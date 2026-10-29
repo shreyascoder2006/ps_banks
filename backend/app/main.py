@@ -9,7 +9,6 @@ from .routers import (
     activity_routes,
     realtime_routes,
     assistant_routes,
-    auth_routes,
     blockchain_routes,
     complaints_routes,
     customers,
@@ -47,7 +46,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth_routes.router)
 app.include_router(customers.router)
 app.include_router(segments.router)
 app.include_router(forecast_routes.router)

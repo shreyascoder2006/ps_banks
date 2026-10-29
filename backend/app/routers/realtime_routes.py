@@ -1,28 +1,13 @@
 import asyncio
 
-import jwt
-from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
-
-from ..auth import User, get_current_user, require_admin
-from ..config import JWT_ALGORITHM, JWT_SECRET
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from ..services import events, simulator
 
 router = APIRouter(tags=["realtime"])
 
 
-def _verify_ws_token(token: str) -> bool:
-    try:
-        jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        return True
-    except jwt.InvalidTokenError:
-        return False
-
-
 @router.websocket("/ws/events")
-async def ws_events(websocket: WebSocket, token: str = Query(default="")):
-    if not _verify_ws_token(token):
-        await websocket.close(code=4401)
-        return
+async def ws_events(websocket: WebSocket):
     await websocket.accept()
     events.bind_loop(asyncio.get_running_loop())
     queue = events.subscribe()
@@ -44,21 +29,21 @@ async def ws_events(websocket: WebSocket, token: str = Query(default="")):
 
 
 @router.get("/events/recent")
-def recent_events(limit: int = 50, current_user: User = Depends(get_current_user)):
+def recent_events(limit: int = 50):
     return {"events": events.recent(limit)}
 
 
 @router.get("/simulation/status")
-def simulation_status(current_user: User = Depends(get_current_user)):
+def simulation_status():
     return {**simulator.status(), "subscribers": events.subscriber_count()}
 
 
 @router.post("/simulation/start")
-async def simulation_start(speed: float = 1.0, current_user: User = Depends(get_current_user)):
+async def simulation_start(speed: float = 1.0):
     events.bind_loop(asyncio.get_running_loop())
     return simulator.start(speed)
 
 
 @router.post("/simulation/stop")
-async def simulation_stop(current_user: User = Depends(get_current_user)):
+async def simulation_stop():
     return simulator.stop()

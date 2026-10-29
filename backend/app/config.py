@@ -6,10 +6,6 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-JWT_SECRET = os.getenv("JWT_SECRET", "dev-only-insecure-secret-change-me")
-JWT_ALGORITHM = "HS256"
-JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "480"))
-
 CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",") if o.strip()]
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")

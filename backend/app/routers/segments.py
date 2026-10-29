@@ -1,6 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-
-from ..auth import User, get_current_user
+from fastapi import APIRouter, HTTPException, Query
 from ..services.churn import score_all_customers
 from ..services.segmentation import compute_personalised_offer, compute_segments
 
@@ -8,7 +6,7 @@ router = APIRouter(prefix="/segments", tags=["segments"])
 
 
 @router.get("")
-def list_segments(current_user: User = Depends(get_current_user)):
+def list_segments():
     df = compute_segments()
     summary = (
         df.groupby("segment")
@@ -23,8 +21,7 @@ def list_segments(current_user: User = Depends(get_current_user)):
 def list_segment_customers(
     segment: str | None = None,
     limit: int = 50,
-    offset: int = 0,
-    current_user: User = Depends(get_current_user),
+    offset: int = 0
 ):
     df = compute_segments()
     scored = score_all_customers()[["CustomerId", "churn_risk_score", "churn_risk_level", "branch"]]
@@ -46,8 +43,7 @@ def list_segment_customers(
 @router.get("/impact")
 def campaign_impact(
     segment: str,
-    win_back_pct: float = Query(default=10, ge=0, le=100),
-    current_user: User = Depends(get_current_user),
+    win_back_pct: float = Query(default=10, ge=0, le=100)
 ):
     """What-if for a retention campaign: if `win_back_pct` of the segment's
     critical/high-risk customers are retained, how much balance and how
@@ -74,7 +70,7 @@ def campaign_impact(
 
 
 @router.get("/{customer_id}/offer")
-def customer_offer(customer_id: int, current_user: User = Depends(get_current_user)):
+def customer_offer(customer_id: int):
     df = compute_segments()
     match = df[df["CustomerId"] == customer_id]
     if match.empty:

@@ -3,8 +3,6 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlmodel import Session, select
-
-from ..auth import User, get_current_user
 from ..db import get_session
 from ..models import Complaint
 from ..services.churn import explain, get_model_metrics, score_all_customers, simulate
@@ -57,8 +55,7 @@ def list_customers(
     sort: str = "risk",
     order: str = "desc",
     limit: int = 100,
-    offset: int = 0,
-    current_user: User = Depends(get_current_user),
+    offset: int = 0
 ):
     df = score_all_customers()
     if risk_level:
@@ -81,7 +78,7 @@ def list_customers(
 
 
 @router.get("/stats")
-def stats(current_user: User = Depends(get_current_user)):
+def stats():
     """Book-wide aggregates over ALL customers (not a page), for the Overview."""
     df = score_all_customers()
     by_level = df["churn_risk_level"].value_counts().to_dict()
@@ -98,7 +95,7 @@ def stats(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/branches")
-def branches(current_user: User = Depends(get_current_user)):
+def branches():
     df = score_all_customers()
     summary = (
         df.groupby("branch")
@@ -120,7 +117,7 @@ class SimulateRequest(BaseModel):
 
 
 @router.get("/{customer_id}/explain")
-def explain_customer(customer_id: int, current_user: User = Depends(get_current_user)):
+def explain_customer(customer_id: int):
     try:
         return explain(customer_id)
     except KeyError:
@@ -128,7 +125,7 @@ def explain_customer(customer_id: int, current_user: User = Depends(get_current_
 
 
 @router.post("/{customer_id}/simulate")
-def simulate_customer(customer_id: int, body: SimulateRequest, current_user: User = Depends(get_current_user)):
+def simulate_customer(customer_id: int, body: SimulateRequest):
     overrides = {
         "Is Active Member": body.is_active_member,
         "Num Of Products": body.num_products,
@@ -145,7 +142,7 @@ def simulate_customer(customer_id: int, body: SimulateRequest, current_user: Use
 
 
 @router.get("/{customer_id}")
-def get_customer(customer_id: int, current_user: User = Depends(get_current_user)):
+def get_customer(customer_id: int):
     df = score_all_customers()
     match = df[df["CustomerId"] == customer_id]
     if match.empty:
@@ -154,7 +151,7 @@ def get_customer(customer_id: int, current_user: User = Depends(get_current_user
 
 
 @router.get("/{customer_id}/360")
-def customer_360(customer_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+def customer_360(customer_id: int, session: Session = Depends(get_session)):
     df = score_all_customers()
     match = df[df["CustomerId"] == customer_id]
     if match.empty:
@@ -185,5 +182,5 @@ def customer_360(customer_id: int, session: Session = Depends(get_session), curr
 
 
 @router.get("/model/metrics")
-def model_metrics(current_user: User = Depends(get_current_user)):
+def model_metrics():
     return get_model_metrics()

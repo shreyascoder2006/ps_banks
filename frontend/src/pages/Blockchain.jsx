@@ -1,7 +1,6 @@
-import { Hash, Lock, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Hash, RefreshCw, ShieldCheck } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { client } from '../api/client';
-import { useAuth } from '../auth/AuthContext';
 import { Spinner } from '../components/Badge';
 import Card from '../components/Card';
 import PageHeader from '../components/PageHeader';
@@ -20,7 +19,6 @@ function StatusPill({ status }) {
 }
 
 export default function Blockchain() {
-  const { role } = useAuth();
   const [description, setDescription] = useState('');
   const [payload, setPayload] = useState('');
   const [result, setResult] = useState(null);
@@ -63,44 +61,35 @@ export default function Blockchain() {
         <BlockStrip limit={14} />
       </Card>
 
-      {role === 'admin' ? (
-        <Card title="Store new audit record" action={<span className="badge bg-gold/15 text-gold"><Lock size={11} /> Admin only</span>} className="mb-6">
-          <div className="space-y-3">
-            <input
-              className="input-field py-2.5"
-              placeholder="Description e.g. 'Retention call made to CUST-15634602'"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-            <textarea
-              className="input-field py-2.5 min-h-[90px] resize-y"
-              placeholder="Payload text to hash (e.g. call notes, resolution summary)"
-              value={payload}
-              onChange={(e) => setPayload(e.target.value)}
-            />
-            <button onClick={store} disabled={busy || !description.trim()} className="btn-primary px-5 py-2 text-sm flex items-center gap-1.5">
-              {busy ? <Spinner size={13} className="text-navy-dark" /> : <Hash size={14} />}
-              Store on chain
-            </button>
-          </div>
-          {result && (
-            <div className="fade-in mt-4 rounded-lg bg-white/[0.03] border border-white/[0.06] p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="kicker">Result</span>
-                <StatusPill status={result.status} />
-              </div>
-              <pre className="text-xs text-gray-400 whitespace-pre-wrap font-mono leading-relaxed">{JSON.stringify(result, null, 2)}</pre>
+      <Card title="Store new audit record" className="mb-6">
+        <div className="space-y-3">
+          <input
+            className="input-field py-2.5"
+            placeholder="Description e.g. 'Retention call made to CUST-15634602'"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+          <textarea
+            className="input-field py-2.5 min-h-[90px] resize-y"
+            placeholder="Payload text to hash (e.g. call notes, resolution summary)"
+            value={payload}
+            onChange={(e) => setPayload(e.target.value)}
+          />
+          <button onClick={store} disabled={busy || !description.trim()} className="btn-primary px-5 py-2 text-sm flex items-center gap-1.5">
+            {busy ? <Spinner size={13} className="text-navy-dark" /> : <Hash size={14} />}
+            Store on chain
+          </button>
+        </div>
+        {result && (
+          <div className="fade-in mt-4 rounded-lg bg-white/[0.03] border border-white/[0.06] p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="kicker">Result</span>
+              <StatusPill status={result.status} />
             </div>
-          )}
-        </Card>
-      ) : (
-        <Card className="mb-6">
-          <div className="flex items-center gap-3 text-gray-400 text-sm">
-            <Lock size={16} className="text-gray-500" />
-            Storing audit records requires an admin login.
+            <pre className="text-xs text-gray-400 whitespace-pre-wrap font-mono leading-relaxed">{JSON.stringify(result, null, 2)}</pre>
           </div>
-        </Card>
-      )}
+        )}
+      </Card>
 
       <Card
         title={`On-chain records${latest?.total_records != null ? ` (${latest.total_records})` : ''}`}

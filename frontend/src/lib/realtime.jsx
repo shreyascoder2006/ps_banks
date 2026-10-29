@@ -1,13 +1,11 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { client } from '../api/client';
-import { useAuth } from '../auth/AuthContext';
 
 const RealtimeContext = createContext(null);
 const ALERT_TYPES = new Set(['sla_breached', 'sla_warning', 'risk_changed', 'balance_moved', 'complaint_logged', 'outreach_outcome', 'audit_failed', 'simulation_error']);
 const WS_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/^http/, 'ws');
 
 export function RealtimeProvider({ children }) {
-  const { token } = useAuth();
   const [events, setEvents] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [connected, setConnected] = useState(false);
@@ -22,10 +20,9 @@ export function RealtimeProvider({ children }) {
 
   useEffect(() => {
     let closed = false;
-    if (!token) { setConnected(false); return undefined; }
     const connect = () => {
       if (closed) return;
-      const ws = new WebSocket(`${WS_BASE}/ws/events?token=${encodeURIComponent(token)}`);
+      const ws = new WebSocket(`${WS_BASE}/ws/events`);
       wsRef.current = ws;
       ws.onopen = () => { setConnected(true); retryRef.current = 1000; };
       ws.onmessage = (msg) => {
@@ -53,7 +50,7 @@ export function RealtimeProvider({ children }) {
     };
     connect();
     return () => { closed = true; wsRef.current?.close(); };
-  }, [dispatch, token]);
+  }, [dispatch]);
 
   const subscribe = useCallback((fn) => {
     listeners.current.add(fn);

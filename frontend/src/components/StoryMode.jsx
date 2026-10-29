@@ -2,7 +2,6 @@ import { ChevronLeft, ChevronRight, Pause, Play, Sparkles, Square } from 'lucide
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { client } from '../api/client';
-import { useAuth } from '../auth/AuthContext';
 
 const STEP_MS = 7000;
 
@@ -107,7 +106,6 @@ async function buildSteps() {
 }
 
 export default function StoryMode() {
-  const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [steps, setSteps] = useState(null);
   const [idx, setIdx] = useState(-1);
@@ -191,8 +189,6 @@ export default function StoryMode() {
     window.addEventListener('scroll', rem, true);
     return () => { window.removeEventListener('resize', rem); window.removeEventListener('scroll', rem, true); };
   }, [idx, steps]);
-
-  if (!isAuthenticated) return null;
 
   if (idx < 0) {
     return (

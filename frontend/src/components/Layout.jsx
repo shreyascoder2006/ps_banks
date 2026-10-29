@@ -1,10 +1,9 @@
 import {
-  Activity, LayoutDashboard, Landmark, Languages, LineChart, LogOut, Megaphone, MessagesSquare,
+  Activity, LayoutDashboard, Landmark, Languages, LineChart, Megaphone, MessagesSquare,
   ShieldCheck, Sparkles, TrendingUp, Users,
 } from 'lucide-react';
 import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
-import { useAuth } from '../auth/AuthContext';
+import { NavLink } from 'react-router-dom';
 import TopBar from './TopBar';
 
 const NAV_ITEMS = [
@@ -22,9 +21,6 @@ const NAV_ITEMS = [
 ];
 
 export default function Layout({ children }) {
-  const { role, branch, logout } = useAuth();
-  const navigate = useNavigate();
-
   return (
     <div className="min-h-screen flex">
       <aside className="w-64 shrink-0 bg-navy-dark/60 border-r border-white/[0.06] flex flex-col">
@@ -65,24 +61,6 @@ export default function Layout({ children }) {
             );
           })}
         </nav>
-
-        <div className="mx-3 mb-3 px-3 py-3 rounded-lg bg-white/[0.03] border border-white/[0.06]">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-gold/40 to-gold/10 flex items-center justify-center text-gold text-xs font-bold uppercase">
-              {role?.[0] || '?'}
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs font-semibold text-white capitalize truncate">{role}</div>
-              <div className="text-[11px] text-gray-500 truncate">{branch}</div>
-            </div>
-          </div>
-          <button
-            onClick={() => { logout(); navigate('/login'); }}
-            className="w-full flex items-center justify-center gap-1.5 text-[11px] font-medium text-gray-400 hover:text-gold py-1.5 rounded-md hover:bg-white/[0.04] transition-colors"
-          >
-            <LogOut size={12} /> Log out
-          </button>
-        </div>
       </aside>
       <main className="flex-1 overflow-y-auto">
         <TopBar />

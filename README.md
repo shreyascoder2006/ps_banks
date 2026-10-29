@@ -27,7 +27,6 @@ open CORS, private keys in query strings).
 | Complaints | CFPB data faked as Indian names, fetched from the browser (Aurus) | Same relabeling approach, fetched server-side |
 | Policy Assistant | RBI PDFs parsed in-browser with a client-side Groq key (Aurus) | Parsed server-side, Groq key never leaves the backend |
 | Blockchain | Forecast-only contract, private key in a GET query string (Outliers) | Generic audit-trail contract, signer config is server-side only |
-| Auth | No backend at all / unsigned base64 "token" | Real signed JWT (PyJWT), verified server-side on every request |
 
 See [`backend/LIMITATIONS.md`](backend/LIMITATIONS.md) for a full
 real/derived/placeholder data-provenance breakdown — nothing here silently
@@ -56,7 +55,7 @@ cp .env.example .env        # fill in GROQ_API_KEY etc. to enable full AI featur
 uvicorn app.main:app --reload --port 8000
 ```
 
-Demo logins: `agent` / `agent123` (agent role), `admin` / `admin123` (admin role).
+The console has no login — every API endpoint and page is open by default.
 
 ### Frontend
 
@@ -87,8 +86,6 @@ Without Ganache configured, the audit-trail endpoints respond with
 
 ## Security notes
 
-- JWT is signed server-side (`JWT_SECRET` in `backend/.env`) and verified
-  on every request — never trust a client-supplied role.
 - `GROQ_API_KEY` / `GEMINI_API_KEY` are read only by the backend process;
   the frontend never sees them.
 - CORS is restricted to `CORS_ORIGINS` in `backend/.env` (defaults to the

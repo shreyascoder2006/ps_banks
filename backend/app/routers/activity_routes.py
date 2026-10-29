@@ -2,8 +2,6 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
-
-from ..auth import User, get_current_user
 from ..db import get_session
 from ..models import Complaint, ComplaintMessage, OutreachAction, OutreachOutcome
 
@@ -11,7 +9,7 @@ router = APIRouter(prefix="/activity", tags=["activity"])
 
 
 @router.get("")
-def activity(limit: int = 25, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+def activity(limit: int = 25, session: Session = Depends(get_session)):
     """Unified, newest-first event feed across complaints and outreach so
     the Overview page can show the bank's operational pulse."""
     events = []

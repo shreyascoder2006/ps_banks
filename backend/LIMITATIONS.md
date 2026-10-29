@@ -86,5 +86,4 @@ silently fabricating data, this file tags every non-obvious signal as
 - No Prophet/ARIMA/XGBoost model selection (see above).
 - No heatmap or "competitive index" stock-ticker sector breakdown beyond
   the sentiment index above.
-- Demo auth uses two in-memory accounts (`agent`/`admin`), not a real user
-  database — fine for a demo, not for production.
+- No authentication — the console and API are open by design for this demo.
