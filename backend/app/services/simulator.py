@@ -137,7 +137,7 @@ def _tick_outreach_outcome():
         p_retain = 0.75 if a_channel in ("rm_visit", "call") else 0.55
         r = random.random()
         outcome = "retained" if r < p_retain else ("no_response" if r < p_retain + 0.15 else "churned")
-        record_outcome(session, a_id, outcome, "Reported by channel (simulated)")
+        record_outcome(session, a_id, outcome, "Reported by channel (simulated)", source="simulator", observed=False, recorded_by="simulator")
     publish(
         "outreach_outcome",
         f"Outreach #{a_id} via {a_channel.replace('_', ' ')}: customer {outcome.replace('_', ' ')}",

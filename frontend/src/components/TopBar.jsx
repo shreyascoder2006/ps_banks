@@ -1,6 +1,8 @@
-import { Bell, Check, Radio, Trash2, Wifi, WifiOff } from 'lucide-react';
+import { Bell, Check, Menu, Radio, Search, Trash2, Wifi, WifiOff } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { client } from '../api/client';
+import { useDebounce } from '../lib/hooks';
 import { useRealtime } from '../lib/realtime';
 import { useToast } from './Toast';
 
@@ -12,13 +14,62 @@ const SEV = {
 };
 
 function targetFor(alert) {
+  if (alert.ref?.alertId) return '/alerts';
   if (alert.ref?.complaintId) return '/complaints';
   if (alert.ref?.customerId) return `/customers/${alert.ref.customerId}`;
   if (alert.ref?.actionId) return '/outreach';
   return '/';
 }
 
-export default function TopBar() {
+function GlobalSearch() {
+  const navigate = useNavigate();
+  const [q, setQ] = useState('');
+  const [hits, setHits] = useState([]);
+  const [open, setOpen] = useState(false);
+  const dq = useDebounce(q.trim(), 250);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (dq.length < 2) { setHits([]); return undefined; }
+    let live = true;
+    client.get('/customers', { params: { q: dq, limit: 6 } }).then((r) => live && setHits(r.data.customers || [])).catch(() => live && setHits([]));
+    return () => { live = false; };
+  }, [dq]);
+
+  useEffect(() => {
+    const onClick = (ev) => { if (ref.current && !ref.current.contains(ev.target)) setOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, []);
+
+  return (
+    <div className="relative flex-1 max-w-sm" ref={ref}>
+      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" aria-hidden="true" />
+      <input
+        value={q}
+        onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false); }}
+        aria-label="Search customers by surname, account or id"
+        placeholder="Search customer, account or ID"
+        className="input-field py-1.5 pl-9 text-[13px]"
+      />
+      {open && dq.length >= 2 && (
+        <div className="absolute left-0 right-0 mt-1 card shadow-glow overflow-hidden z-50" role="listbox">
+          {hits.length === 0 ? <p className="p-3 text-xs text-gray-500">No matching customers</p> : hits.map((c) => (
+            <button key={c.customerId} role="option" onClick={() => { navigate(`/customers/${c.customerId}`); setOpen(false); setQ(''); }}
+              className="w-full text-left px-3 py-2 hover:bg-white/[0.05] flex items-center justify-between gap-3 text-sm">
+              <span className="truncate text-gray-200">{c.surname} <span className="text-gray-500 text-xs">· {c.accountNo} · {c.branch}</span></span>
+              <span className="text-xs tabular-nums text-gray-400">{c.churnRiskScore.toFixed(0)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function TopBar({ onMenu }) {
   const rt = useRealtime();
   const toast = useToast();
   const navigate = useNavigate();
@@ -48,7 +99,10 @@ export default function TopBar() {
   const { alerts, unread, connected, simulation, toggleSimulation, markAllRead, clearAlerts } = rt;
 
   return (
-    <div className="sticky top-0 z-40 flex items-center justify-end gap-3 px-8 py-3 bg-navy/70 backdrop-blur-md border-b border-white/[0.04]">
+    <div className="sticky top-0 z-40 flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-2.5 bg-navy/80 backdrop-blur-md border-b border-white/[0.04]">
+      <button onClick={onMenu} className="lg:hidden p-2 -ml-2 rounded-lg text-gray-300 hover:bg-white/[0.05]" aria-label="Open navigation"><Menu size={18} /></button>
+      <GlobalSearch />
+      <div className="flex-1" />
       <button
         onClick={toggleSimulation}
         data-tour="live-toggle"
@@ -58,7 +112,7 @@ export default function TopBar() {
         title={simulation.running ? 'Stop live demo mode' : 'Start live demo mode — simulates bank events in real time'}
       >
         <span className={`w-2 h-2 rounded-full ${simulation.running ? 'bg-risk-low animate-pulse' : 'bg-gray-600'}`} />
-        <Radio size={13} /> {simulation.running ? 'Live demo running' : 'Live demo mode'}
+        <Radio size={13} aria-hidden="true" /> <span className="hidden sm:inline">{simulation.running ? 'Live demo running' : 'Live demo mode'}</span>
       </button>
 
       <span className={`flex items-center gap-1 text-[11px] ${connected ? 'text-risk-low' : 'text-gray-500'}`} title={connected ? 'Real-time connected' : 'Reconnecting…'}>
@@ -66,7 +120,7 @@ export default function TopBar() {
       </span>
 
       <div className="relative" ref={panelRef}>
-        <button onClick={() => { setOpen((o) => !o); if (!open) markAllRead(); }} data-tour="alerts" className="relative p-2 rounded-lg hover:bg-white/[0.05] text-gray-300">
+        <button aria-label="Notifications" onClick={() => { setOpen((o) => !o); if (!open) markAllRead(); }} data-tour="alerts" className="relative p-2 rounded-lg hover:bg-white/[0.05] text-gray-300">
           <Bell size={17} />
           {unread > 0 && (
             <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-risk-critical text-white text-[10px] font-bold flex items-center justify-center animate-pulse">
@@ -76,7 +130,7 @@ export default function TopBar() {
         </button>
 
         {open && (
-          <div className="absolute right-0 mt-2 w-[420px] card shadow-glow fade-in overflow-hidden">
+          <div className="absolute right-0 mt-2 w-[min(420px,calc(100vw-2rem))] card shadow-glow fade-in overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
               <span className="kicker">Alerts ({alerts.length})</span>
               <div className="flex gap-2">

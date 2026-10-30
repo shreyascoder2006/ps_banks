@@ -59,7 +59,7 @@ function Board({ complaints, now, onMove, onOpen, selectedId, movingId }) {
   );
 
   return (
-    <div className="grid grid-cols-4 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
       {STATUSES.map((status) => (
         <div
           key={status}
@@ -269,7 +269,7 @@ export default function Complaints() {
 
       {showNew && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 fade-in" onClick={() => setShowNew(false)}>
-          <form onSubmit={submitNew} className="card p-6 w-[520px] shadow-glow space-y-3" onClick={(e) => e.stopPropagation()}>
+          <form onSubmit={submitNew} className="card p-6 w-[520px] max-w-[calc(100vw-2rem)] max-h-[92vh] overflow-y-auto shadow-glow space-y-3" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="text-white font-bold">Log a new complaint</h2>
               <button type="button" onClick={() => setShowNew(false)} className="text-gray-500 hover:text-white"><X size={18} /></button>
@@ -343,7 +343,7 @@ export default function Complaints() {
           )}
         </div>
       ) : (
-      <div className="grid grid-cols-[340px_minmax(0,1fr)] gap-4 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)] gap-4 items-start">
         <Card title={`Inbox (${visible.length})`} noPad className="max-h-[72vh] overflow-y-auto" tour="inbox">
           <div className="px-2 pb-2">
             {visible.length === 0 && <p className="text-xs text-gray-500 text-center py-8">No complaints match.</p>}

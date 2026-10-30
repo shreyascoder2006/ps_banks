@@ -94,3 +94,86 @@ body {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ---------- design tokens & accessibility (Bank Pulse 2.0) ---------- */
+:root {
+  --bp-bg: #0a1428;
+  --bp-surface: #0f1c36;
+  --bp-elevated: #14234a;
+  --bp-border: rgba(255, 255, 255, 0.06);
+  --bp-border-strong: rgba(255, 255, 255, 0.14);
+  --bp-text: #e7eaf2;
+  --bp-text-muted: #8b93a7;
+  --bp-gold: #d4af37;
+  --bp-critical: #f43f5e;
+  --bp-high: #f59e0b;
+  --bp-medium: #38bdf8;
+  --bp-low: #34d399;
+  --bp-radius: 12px;
+  --bp-radius-sm: 8px;
+  --bp-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --bp-dur-fast: 120ms;
+  --bp-dur: 220ms;
+  --bp-dur-slow: 420ms;
+  --bp-space-1: 4px;
+  --bp-space-2: 8px;
+  --bp-space-3: 12px;
+  --bp-space-4: 16px;
+  --bp-space-6: 24px;
+  --bp-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -8px rgba(0, 0, 0, 0.5);
+  --bp-shadow-pop: 0 18px 50px -12px rgba(0, 0, 0, 0.7);
+  --bp-text-faint: #6b7388;
+  --bp-disabled-opacity: 0.4;
+}
+
+:focus-visible {
+  outline: 2px solid var(--bp-gold);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+button:disabled, [aria-disabled='true'] { cursor: not-allowed; }
+.card-hover:focus-visible { box-shadow: 0 0 0 2px var(--bp-gold); }
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-modern tbody tr[aria-selected='true'], .table-modern tbody tr[data-selected='true'] { background: rgba(212, 175, 55, 0.08); box-shadow: inset 2px 0 0 var(--bp-gold); }
+.truncate-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.panel-enter { animation: panelIn 0.22s var(--bp-ease); }
+@keyframes panelIn { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: translateX(0); } }
+
+/* Page and block entrance: one short, consistent motion; blocks cascade via --i. */
+.page-enter { animation: pageIn var(--bp-dur) var(--bp-ease) backwards; }
+@keyframes pageIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+/* fill-mode 'backwards' (not 'both'): a lingering transform would trap position:fixed descendants */
+.reveal { animation: pageIn var(--bp-dur-slow) var(--bp-ease) backwards; animation-delay: calc(var(--i, 0) * 45ms); }
+
+/* Chart draw-in and bar growth */
+.draw-line { stroke-dasharray: var(--len, 1000); stroke-dashoffset: var(--len, 1000); animation: drawLine 900ms var(--bp-ease) forwards; }
+@keyframes drawLine { to { stroke-dashoffset: 0; } }
+.grow-x { transform-origin: left center; animation: growX var(--bp-dur-slow) var(--bp-ease) backwards; animation-delay: calc(var(--i, 0) * 40ms); }
+@keyframes growX { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* Tabs */
+.tab { @apply px-3.5 py-2 text-[13px] font-medium text-gray-400 border-b-2 border-transparent transition-colors; }
+.tab:hover { color: #e7eaf2; }
+.tab[aria-selected='true'] { color: var(--bp-gold); border-bottom-color: var(--bp-gold); }
+
+/* Selectable table rows */
+.row-select { cursor: pointer; }
+.row-select:focus-visible { outline-offset: -2px; }
+
+/* Stacked detail panel on small screens becomes a bottom sheet */
+.sheet { box-shadow: var(--bp-shadow-pop); }
+@media (max-width: 1023px) {
+  .sheet-mobile { position: fixed; inset: auto 0 0 0; max-height: 82vh; overflow-y: auto; z-index: 40; border-radius: 16px 16px 0 0; animation: sheetIn var(--bp-dur) var(--bp-ease); }
+}
+@keyframes sheetIn { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+button:disabled, .btn-primary:disabled, .btn-ghost:disabled { opacity: var(--bp-disabled-opacity); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

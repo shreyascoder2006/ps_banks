@@ -199,10 +199,10 @@ export default function StoryMode() {
       <button
         onClick={start}
         data-tour="story-button"
-        className="fixed bottom-5 left-5 z-[90] btn-primary px-4 py-2.5 text-sm flex items-center gap-2 shadow-glow"
+        className="fixed bottom-4 right-16 sm:right-[10.5rem] z-[29] btn-ghost px-3.5 py-2.5 text-[13px] flex items-center gap-2 shadow-card backdrop-blur"
         title="Auto-narrated walkthrough of one customer's journey through the platform"
       >
-        <Play size={14} /> Play story
+        <Play size={14} aria-hidden="true" /> <span className="hidden sm:inline">Play story</span>
       </button>
     );
   }

@@ -69,15 +69,15 @@ export default function ComplaintInsights() {
         </div>
       )}
 
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard label="Total complaints" value={t.total} icon={FileWarning} tone="gold" />
         <StatCard label="SLA breach rate" value={`${(t.sla_breach_rate * 100).toFixed(0)}%`} sub={`${t.sla_breached} breached`} icon={TriangleAlert} tone={t.sla_breached > 0 ? 'red' : 'green'} />
         <StatCard label="Avg resolution" value={t.avg_resolution_hours != null ? `${t.avg_resolution_hours}h` : '—'} icon={Clock} tone="blue" />
         <StatCard label="Avg AI sentiment" value={t.avg_ai_sentiment != null ? t.avg_ai_sentiment.toFixed(2) : '—'} sub="0 = very negative, 1 = positive" icon={Smile} tone={t.avg_ai_sentiment != null && t.avg_ai_sentiment < 0.4 ? 'red' : 'green'} />
       </div>
 
-      <div className="grid grid-cols-3 gap-4 mb-4">
-        <Card title="Volume by category" className="col-span-2">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        <Card title="Volume by category" className="lg:col-span-2">
           <div className="h-56">
             <Bar
               data={{ labels: cats.map(([k]) => k), datasets: [{ data: cats.map(([, v]) => v), backgroundColor: chartColors.gold, borderRadius: 4, maxBarThickness: 40 }] }}
@@ -100,14 +100,14 @@ export default function ComplaintInsights() {
           </div>
           <div className="mt-4 pt-3 border-t border-white/[0.05]">
             <div className="text-[11px] uppercase tracking-wide text-gray-500 mb-1.5">By channel</div>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-1.5 min-w-0">
               {Object.entries(t.by_channel).map(([k, v]) => <span key={k} className="badge bg-white/[0.06] text-gray-300 capitalize">{k} · {v}</span>)}
             </div>
           </div>
         </Card>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card title="Weekly volume">
           <div className="h-40">
             <Line
@@ -116,12 +116,12 @@ export default function ComplaintInsights() {
             />
           </div>
         </Card>
-        <Card title="Root-cause terms (TF-IDF per category)" className="col-span-2">
+        <Card title="Root-cause terms (TF-IDF per category)" className="lg:col-span-2">
           <div className="space-y-2.5">
             {Object.entries(t.root_cause_terms).map(([cat, terms]) => (
-              <div key={cat} className="flex items-start gap-3">
+              <div key={cat} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
                 <span className="text-xs text-gray-400 w-32 shrink-0 pt-0.5">{cat}</span>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1.5 min-w-0">
                   {terms.map((term) => <span key={term} className="badge bg-gold/10 text-gold border border-gold/15">{term}</span>)}
                 </div>
               </div>

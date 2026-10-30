@@ -15,10 +15,16 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import roc_auc_score, accuracy_score
+import hashlib
+
+from sklearn.calibration import calibration_curve
+from sklearn.metrics import (
+    accuracy_score, average_precision_score, brier_score_loss, confusion_matrix, f1_score,
+    precision_score, recall_score, roc_auc_score,
+)
 from sklearn.preprocessing import LabelEncoder
 
-from ..config import MODEL_DIR
+from ..config import CHURN_DATA_PATH, MODEL_DIR
 from ..data.loader import load_customers
 from ..lib.ttl_cache import ttl_cache
 
@@ -31,6 +37,8 @@ FEATURES = [
 MODEL_PATH = MODEL_DIR / "churn_model.joblib"
 ENCODERS_PATH = MODEL_DIR / "churn_encoders.joblib"
 FEEDBACK_WEIGHT = 3.0
+METRICS_SCHEMA_VERSION = 2  # bump when the saved artifact's metrics layout changes (forces a safe retrain on load)
+DRIFT_FEATURES = ["CreditScore", "Age", "Tenure", "Balance", "Estimated Salary", "Num Of Products"]
 
 
 def _operational_signals() -> pd.DataFrame:
@@ -47,7 +55,9 @@ def _operational_signals() -> pd.DataFrame:
                 [{"CustomerId": c.customer_id} for c in session.exec(select(Complaint)).all()]
             )
             actions = session.exec(select(OutreachAction)).all()
-            outcomes = {o.action_id: o.outcome for o in session.exec(select(OutreachOutcome)).all()}
+            # Only genuinely observed outcomes may become training labels;
+            # simulator-written outcomes (observed=False) must never leak in.
+            outcomes = {o.action_id: o.outcome for o in session.exec(select(OutreachOutcome)).all() if o.observed}
             outreach = pd.DataFrame([{"CustomerId": a.customer_id, "outcome": outcomes.get(a.id)} for a in actions])
     except Exception:
         return pd.DataFrame(columns=["CustomerId", "complaint_count", "outreach_count", "feedback_label"])
@@ -139,16 +149,44 @@ def _train() -> dict:
     model.fit(X_train, y_train, sample_weight=w_train)
 
     probs = model.predict_proba(X_test)[:, 1]
+    pred = (probs >= 0.5).astype(int)
+    tn, fp, fn, tp = confusion_matrix(y_test, pred, labels=[0, 1]).ravel()
+    frac_pos, mean_pred = calibration_curve(y_test, probs, n_bins=8, strategy="quantile")
+    trained_at = datetime.utcnow()
+    data_version = hashlib.sha256(CHURN_DATA_PATH.read_bytes()).hexdigest()[:10]
     metrics = {
+        "schema_version": METRICS_SCHEMA_VERSION,
+        "model_version": f"rf-{trained_at:%Y%m%d%H%M%S}-{data_version[:6]}",
+        "data_version": data_version,
+        "algorithm": "RandomForestClassifier(n_estimators=200, max_depth=8, min_samples_leaf=5, class_weight=balanced)",
+        "evaluation": "single stratified 80/20 hold-out (random_state=42). Not temporal: the dataset has no timestamps.",
         "auc": float(roc_auc_score(y_test, probs)),
-        "accuracy": float(accuracy_score(y_test, model.predict(X_test))),
+        "pr_auc": float(average_precision_score(y_test, probs)),
+        "accuracy": float(accuracy_score(y_test, pred)),
+        "precision": float(precision_score(y_test, pred, zero_division=0)),
+        "recall": float(recall_score(y_test, pred, zero_division=0)),
+        "f1": float(f1_score(y_test, pred, zero_division=0)),
+        "brier": float(brier_score_loss(y_test, probs)),
+        "threshold": 0.5,
+        "confusion": {"tn": int(tn), "fp": int(fp), "fn": int(fn), "tp": int(tp)},
+        "calibration": [{"predicted": round(float(p), 3), "observed": round(float(o), 3)} for p, o in zip(mean_pred, frac_pos)],
+        "calibrated": False,
+        "calibration_note": "class_weight=balanced inflates probabilities for the minority class; treat scores as a risk ranking, not as real-world churn probabilities.",
+        "positive_rate_train": round(float(y_train.mean()), 4),
         "n_train": int(len(X_train)),
         "n_test": int(len(X_test)),
         "feedback_rows_used": int(has_feedback.sum()),
-        "trained_at": datetime.utcnow().isoformat(),
+        "trained_at": trained_at.isoformat(),
+        "feature_schema": FEATURES,
     }
 
     importances = dict(zip(FEATURES, model.feature_importances_))
+    reference = {}
+    for col in DRIFT_FEATURES:
+        edges = np.unique(np.quantile(X_train[col], np.linspace(0, 1, 11)))
+        counts, _ = np.histogram(X_train[col], bins=edges)
+        reference[col] = {"edges": edges.tolist(), "share": (counts / max(counts.sum(), 1)).tolist()}
+    metrics["drift_reference"] = reference
     joblib.dump({"model": model, "metrics": metrics, "feature_importances": importances, "features": FEATURES}, MODEL_PATH)
     joblib.dump({"geo": geo_enc, "gender": gender_enc}, ENCODERS_PATH)
     return {"model": model, "geo_enc": geo_enc, "gender_enc": gender_enc, "metrics": metrics, "feature_importances": importances}
@@ -160,7 +198,7 @@ def get_model_bundle() -> dict:
         try:
             m = joblib.load(MODEL_PATH)
             enc = joblib.load(ENCODERS_PATH)
-            if m.get("features") == FEATURES:
+            if m.get("features") == FEATURES and m.get("metrics", {}).get("schema_version") == METRICS_SCHEMA_VERSION:
                 return {
                     "model": m["model"], "geo_enc": enc["geo"], "gender_enc": enc["gender"],
                     "metrics": m["metrics"], "feature_importances": m["feature_importances"],

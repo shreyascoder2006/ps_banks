@@ -8,9 +8,11 @@ from .db import init_db, session_scope
 from .routers import (
     activity_routes,
     realtime_routes,
+    retention_routes,
     assistant_routes,
     auth_routes,
     blockchain_routes,
+    chat_routes,
     complaints_routes,
     customers,
     forecast_routes,
@@ -37,7 +39,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="ps_banks API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Bank Pulse API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -59,8 +61,10 @@ app.include_router(activity_routes.router)
 app.include_router(realtime_routes.router)
 app.include_router(assistant_routes.router)
 app.include_router(blockchain_routes.router)
+app.include_router(chat_routes.router)
+app.include_router(retention_routes.router)
 
 
 @app.get("/")
 def root():
-    return {"service": "ps_banks API", "status": "ok"}
+    return {"service": "Bank Pulse API", "status": "ok"}

@@ -1,4 +1,4 @@
-# ps_banks — Bank Customer Intelligence & Retention Console
+# Bank Pulse — Bank Customer Intelligence & Retention Console
 
 A merged banking platform combining two hackathon/IPD projects into one:
 
@@ -36,7 +36,7 @@ pretends synthetic or fallback data is live.
 ## Structure
 
 ```
-ps_banks/
+bank_pulse/
   backend/    FastAPI app (see backend/app/), real trained churn model,
               RFM segmentation, forecast, product trends, market sentiment,
               complaints, policy+CRM assistant, demo blockchain audit trail

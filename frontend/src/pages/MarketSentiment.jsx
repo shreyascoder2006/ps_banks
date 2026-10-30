@@ -90,7 +90,7 @@ export default function MarketSentiment() {
       {!data ? (
         <div className="skeleton h-80" />
       ) : (
-        <div className="grid grid-cols-[280px_1fr] gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)] gap-4">
           <Card>
             <ScoreRing score={data.composite_score} />
             <p className="text-center text-xs text-gray-500 mt-4">Composite score</p>

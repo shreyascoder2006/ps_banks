@@ -83,8 +83,8 @@ export default function Segments() {
         subtitle="Click a segment to drill in. The campaign simulator uses real balances and real model scores — no invented uplift."
       />
 
-      <div className="grid grid-cols-3 gap-4 mb-4">
-        <Card title="Customer distribution by segment" className="col-span-2" action={<span className="text-[11px] text-gray-500 flex items-center gap-1"><MousePointerClick size={11} /> click a bar</span>}>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        <Card title="Customer distribution by segment" className="lg:col-span-2" action={<span className="text-[11px] text-gray-500 flex items-center gap-1"><MousePointerClick size={11} /> click a bar</span>}>
           <div className="h-64">
             <Bar ref={chartRef} data={data} onClick={onBarClick} options={baseGridOptions({ plugins: { legend: { display: false } }, onHover: (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; } })} />
           </div>
@@ -145,7 +145,7 @@ export default function Segments() {
         </form>
         {error && <div className="px-3 py-2 rounded-lg bg-risk-critical/10 border border-risk-critical/20 text-red-300 text-sm">{error}</div>}
         {offer && (
-          <div className="fade-in grid grid-cols-[auto_1fr] gap-x-5 items-start rounded-lg bg-white/[0.03] border border-white/[0.06] p-4">
+          <div className="fade-in grid grid-cols-[auto_minmax(0,1fr)] gap-x-5 items-start rounded-lg bg-white/[0.03] border border-white/[0.06] p-4">
             <div className="w-11 h-11 rounded-lg bg-gold/10 border border-gold/20 flex items-center justify-center"><Coins size={18} className="text-gold" /></div>
             <div>
               <div className="flex items-center gap-2 mb-1">

@@ -38,7 +38,14 @@ def get_recommendation(customer_id: int, session: Session = Depends(get_session)
 
 @router.post("/trigger")
 def post_trigger(body: TriggerRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    # Same safeguards as the workbench: consent, cooldown, frequency cap.
+    from ..services.retention.actions import check_constraints
+    from ..services.outreach import recommend as _rec
     try:
+        ch = body.channel or _rec(session, body.customer_id)["channel"]
+        blocks = check_constraints(session, body.customer_id, ch)
+        if blocks:
+            raise HTTPException(status_code=409, detail={"message": "Blocked by outreach safeguards", "constraints": blocks})
         return trigger(session, body.customer_id, current_user.username, body.channel, body.message)
     except KeyError:
         raise HTTPException(status_code=404, detail="Customer not found")
@@ -47,7 +54,7 @@ def post_trigger(body: TriggerRequest, session: Session = Depends(get_session), 
 @router.post("/{action_id}/outcome")
 def post_outcome(action_id: int, body: OutcomeRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     try:
-        return record_outcome(session, action_id, body.outcome, body.notes)
+        return record_outcome(session, action_id, body.outcome, body.notes, source="manual", observed=True, recorded_by=current_user.username)
     except KeyError:
         raise HTTPException(status_code=404, detail="Outreach action not found")
     except ValueError as exc:
@@ -65,5 +72,15 @@ def get_effectiveness(session: Session = Depends(get_session), current_user: Use
 
 
 @router.post("/retrain")
-def post_retrain(current_user: User = Depends(require_admin)):
-    return retrain_with_feedback()
+def post_retrain(session: Session = Depends(get_session), current_user: User = Depends(require_admin)):
+    from ..services.churn import get_model_metrics
+    from ..services.retention.event_store import audit
+    before = get_model_metrics()["metrics"]
+    result = retrain_with_feedback()
+    after = result["metrics"]
+    audit(session, current_user.username, "model_retrained", after.get("model_version", "model"), {
+        "before": {k: before.get(k) for k in ("model_version", "auc", "feedback_rows_used", "n_train")},
+        "after": {k: after.get(k) for k in ("model_version", "auc", "feedback_rows_used", "n_train")},
+        "note": "feedback rows are demo-scale; metric changes are not evidence of improvement"})
+    session.commit()
+    return result

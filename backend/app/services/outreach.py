@@ -173,7 +173,8 @@ def trigger(session: Session, customer_id: int, triggered_by: str, channel: Opti
     return {"action": action_to_dict(action), "audit": audit, "recommendation": rec}
 
 
-def record_outcome(session: Session, action_id: int, outcome: str, notes: Optional[str]) -> dict:
+def record_outcome(session: Session, action_id: int, outcome: str, notes: Optional[str], source: str = "manual",
+                   observed: bool = True, recorded_by: Optional[str] = None) -> dict:
     if outcome not in OUTCOMES:
         raise ValueError(f"Invalid outcome '{outcome}'")
     action = session.get(OutreachAction, action_id)
@@ -183,10 +184,11 @@ def record_outcome(session: Session, action_id: int, outcome: str, notes: Option
     if existing:
         existing.outcome = outcome
         existing.notes = notes
+        existing.source, existing.observed, existing.recorded_by = source, observed, recorded_by
         session.add(existing)
         row = existing
     else:
-        row = OutreachOutcome(action_id=action_id, outcome=outcome, notes=notes)
+        row = OutreachOutcome(action_id=action_id, outcome=outcome, notes=notes, source=source, observed=observed, recorded_by=recorded_by)
         session.add(row)
     session.commit()
     session.refresh(row)
@@ -212,6 +214,9 @@ def action_to_dict(a: OutreachAction, outcome: Optional[OutreachOutcome] = None)
         "auditTxHash": a.audit_tx_hash,
         "outcome": outcome.outcome if outcome else None,
         "outcomeNotes": outcome.notes if outcome else None,
+        "status": a.status,
+        "simulated": a.simulated,
+        "outcomeObserved": outcome.observed if outcome else None,
     }
 
 
@@ -234,7 +239,9 @@ def list_actions(session: Session, customer_id: Optional[int] = None) -> list[di
 
 def effectiveness(session: Session) -> dict:
     actions = session.exec(select(OutreachAction)).all()
-    outcomes = {o.action_id: o.outcome for o in session.exec(select(OutreachOutcome)).all()}
+    all_outcomes = session.exec(select(OutreachOutcome)).all()
+    outcomes = {o.action_id: o.outcome for o in all_outcomes if o.observed}  # simulated outcomes never count as results
+    excluded = sum(1 for o in all_outcomes if not o.observed)
     scored = score_all_customers().set_index("CustomerId")
 
     def bucket():
@@ -259,5 +266,6 @@ def effectiveness(session: Session) -> dict:
         "total": finalise(total),
         "by_channel": {k: {"label": CHANNEL_LABELS.get(k, k), **finalise(v)} for k, v in by_channel.items()},
         "by_segment": {k: finalise(v) for k, v in by_segment.items()},
-        "note": "retention_rate = retained / (retained + churned + no_response); pending outcomes are excluded.",
+        "simulated_outcomes_excluded": excluded,
+        "note": "retention_rate = retained / (retained + churned + no_response); pending outcomes and simulated outcomes are excluded.",
     }

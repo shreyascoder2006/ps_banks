@@ -2,7 +2,9 @@ import { BarElement, CategoryScale, Chart as ChartJS, LinearScale, Tooltip } fro
 import { BrainCircuit, CheckCircle2, Megaphone, Send, TrendingUp, XCircle } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { Bar } from 'react-chartjs-2';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ExperimentTab, WorkbenchTab } from '../components/OutreachTabs';
+import { Chip, Provenance } from '../components/ui';
 import { client } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Spinner } from '../components/Badge';
@@ -28,6 +30,8 @@ export default function Outreach() {
   const [eff, setEff] = useState(null);
   const [busy, setBusy] = useState(null);
   const [retrain, setRetrain] = useState(null);
+  const [params, setParams] = useSearchParams();
+  const tab = params.get('tab') || 'performance';
 
   const load = () => {
     client.get('/outreach/actions').then((res) => setActions(res.data.actions));
@@ -75,7 +79,8 @@ export default function Outreach() {
       <PageHeader
         icon={Megaphone}
         title="Predictive Outreach"
-        subtitle="Every action is channel-routed from real signals, hashed on-chain, and its outcome feeds back into the churn model."
+        crumbs={[{ label: 'Retention', to: '/' }, { label: 'Outreach' }]}
+        subtitle="Rule-routed recommendations with consent, cooldown and frequency safeguards. A person approves every action; delivery is simulated in this demo."
         action={
           role === 'admin' && (
             <button onClick={doRetrain} disabled={!!busy} className="btn-primary px-4 py-2 text-sm flex items-center gap-1.5">
@@ -86,6 +91,17 @@ export default function Outreach() {
         }
       />
 
+      <div className="flex flex-wrap items-center gap-2 mb-5" role="tablist" aria-label="Outreach views">
+        {[['performance', 'Performance'], ['workbench', 'Workbench'], ['experiment', 'Experiment report']].map(([k, label]) => (
+          <Chip key={k} role="tab" aria-selected={tab === k} active={tab === k} onClick={() => setParams(k === 'performance' ? {} : { tab: k })}>{label}</Chip>
+        ))}
+        <span className="ml-auto"><Provenance kind="simulated">Delivery simulated — no message is sent</Provenance></span>
+      </div>
+
+      {tab === 'workbench' && <WorkbenchTab />}
+      {tab === 'experiment' && <ExperimentTab />}
+
+      {tab === 'performance' && (<>
       {retrain && (
         <div className="fade-in mb-4 rounded-lg bg-risk-low/[0.06] border border-risk-low/20 px-4 py-3 text-sm text-gray-200 flex items-center gap-3">
           <BrainCircuit size={16} className="text-risk-low" />
@@ -95,7 +111,7 @@ export default function Outreach() {
       )}
 
       <div className="grid grid-cols-4 gap-4 mb-6" data-tour="outreach-kpis">
-        <StatCard label="Outreach sent" value={eff ? eff.total.sent : '—'} icon={Send} tone="gold" />
+        <StatCard label="Outreach recorded" value={eff ? eff.total.sent : '—'} icon={Send} tone="gold" />
         <StatCard label="Retained" value={eff ? eff.total.retained : '—'} icon={CheckCircle2} tone="green" />
         <StatCard label="Churned" value={eff ? eff.total.churned : '—'} icon={XCircle} tone="red" />
         <StatCard
@@ -133,7 +149,7 @@ export default function Outreach() {
         </Card>
       </div>
 
-      <Card title={`Outreach log (${actions?.length ?? 0})`} noPad tour="outreach-log">
+      <Card title={`Outreach log (${actions?.length ?? 0}) — records, not confirmed deliveries`} noPad tour="outreach-log">
         {!actions ? (
           <div className="p-5 space-y-2">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="skeleton h-10" />)}</div>
         ) : actions.length === 0 ? (
@@ -171,6 +187,7 @@ export default function Outreach() {
           </div>
         )}
       </Card>
+      </>)}
     </div>
   );
 }
